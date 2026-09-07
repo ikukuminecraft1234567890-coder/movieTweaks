@@ -18,6 +18,7 @@ namespace MovieTweaks.ViewModels
     {
         private readonly FFmpegService _ffmpegService;
         private readonly DispatcherTimer _playbackTimer;
+        private readonly UndoRedoService _undoRedo = new();
 
         private Project _project = new();
         private double _currentTimeSeconds;
@@ -28,6 +29,9 @@ namespace MovieTweaks.ViewModels
         private string _statusMessage = "動画ファイルをドラッグ＆ドロップするか、「動画を開く」をクリックしてください。";
         private CancellationTokenSource? _exportCts;
         private double _timelineZoom = 1.0; // 1.0 = 100 pixels per 10 sec etc.
+
+        public bool CanUndo => _undoRedo.CanUndo;
+        public bool CanRedo => _undoRedo.CanRedo;
 
         public Project Project
         {
@@ -57,6 +61,63 @@ namespace MovieTweaks.ViewModels
             _isSyncingFromPlayer = true;
             CurrentTimeSeconds = seconds;
             _isSyncingFromPlayer = false;
+
+            if (IsPlaying)
+            {
+                CheckAndSkipCutRanges(seconds);
+            }
+        }
+
+        private void CheckAndSkipCutRanges(double seconds)
+        {
+            if (Project.CutRanges.Count == 0) return;
+
+            var validRanges = Project.CutRanges.Where(r => r.IsKeep && r.Duration > 0.05).OrderBy(r => r.StartSeconds).ToList();
+            if (validRanges.Count == 0) return;
+
+            bool isInside = validRanges.Any(r => seconds >= r.StartSeconds && seconds < r.EndSeconds);
+            if (!isInside)
+            {
+                var nextRange = validRanges.FirstOrDefault(r => r.StartSeconds > seconds);
+                if (nextRange != null)
+                {
+                    SeekTo(nextRange.StartSeconds);
+                }
+                else
+                {
+                    Pause();
+                    CurrentTimeSeconds = validRanges.Last().EndSeconds;
+                }
+            }
+        }
+
+        public void RecordHistory()
+        {
+            _undoRedo.RecordState(Project);
+        }
+
+        public void Undo()
+        {
+            if (_undoRedo.Undo(Project))
+            {
+                StatusMessage = "操作を元に戻しました (Ctrl+Z)";
+                OnPropertyChanged(nameof(TotalDurationSeconds));
+                OnPropertyChanged(nameof(FormattedTotalTime));
+                OnPropertyChanged(nameof(CurrentTimeDisplay));
+                SelectedItem = Project.Overlays.LastOrDefault() ?? (object?)Project.SourceVideo;
+            }
+        }
+
+        public void Redo()
+        {
+            if (_undoRedo.Redo(Project))
+            {
+                StatusMessage = "操作をやり直しました (Ctrl+Y)";
+                OnPropertyChanged(nameof(TotalDurationSeconds));
+                OnPropertyChanged(nameof(FormattedTotalTime));
+                OnPropertyChanged(nameof(CurrentTimeDisplay));
+                SelectedItem = Project.Overlays.LastOrDefault() ?? (object?)Project.SourceVideo;
+            }
         }
 
         public double TotalDurationSeconds => Project.SourceVideo?.DurationSeconds ?? 0;
@@ -171,6 +232,8 @@ namespace MovieTweaks.ViewModels
         public ICommand SplitCutCommand { get; }
         public ICommand ResetCutCommand { get; }
         public ICommand SelectVideoCommand { get; }
+        public ICommand UndoCommand { get; }
+        public ICommand RedoCommand { get; }
         public ICommand AddTextOverlayCommand { get; }
         public ICommand AddShapeOverlayCommand { get; }
         public ICommand AddImageOverlayCommand { get; }
@@ -217,6 +280,9 @@ namespace MovieTweaks.ViewModels
             SplitCutCommand = new RelayCommand(SplitCutAtCurrentTime);
             ResetCutCommand = new RelayCommand(ResetCutRanges);
             SelectVideoCommand = new RelayCommand(() => SelectedItem = Project.SourceVideo);
+
+            UndoCommand = new RelayCommand(Undo, () => CanUndo);
+            RedoCommand = new RelayCommand(Redo, () => CanRedo);
 
             AddTextOverlayCommand = new RelayCommand(AddTextOverlay);
             AddShapeOverlayCommand = new RelayCommand<ShapeType?>(shape => AddShapeOverlay(shape ?? ShapeType.Rectangle));
@@ -326,10 +392,10 @@ namespace MovieTweaks.ViewModels
         public void SetInPoint()
         {
             if (Project.CutRanges.Count == 0) return;
-            // Find range containing CurrentTime
             var currentRange = Project.CutRanges.FirstOrDefault(r => CurrentTimeSeconds >= r.StartSeconds && CurrentTimeSeconds <= r.EndSeconds);
             if (currentRange != null)
             {
+                RecordHistory();
                 currentRange.StartSeconds = CurrentTimeSeconds;
                 StatusMessage = $"イン点(開始位置)を設定: {FormatTime(CurrentTimeSeconds)}";
             }
@@ -341,6 +407,7 @@ namespace MovieTweaks.ViewModels
             var currentRange = Project.CutRanges.FirstOrDefault(r => CurrentTimeSeconds >= r.StartSeconds && CurrentTimeSeconds <= r.EndSeconds);
             if (currentRange != null)
             {
+                RecordHistory();
                 currentRange.EndSeconds = CurrentTimeSeconds;
                 StatusMessage = $"アウト点(終了位置)を設定: {FormatTime(CurrentTimeSeconds)}";
             }
@@ -352,6 +419,7 @@ namespace MovieTweaks.ViewModels
             var target = Project.CutRanges.FirstOrDefault(r => CurrentTimeSeconds > r.StartSeconds + 0.05 && CurrentTimeSeconds < r.EndSeconds - 0.05);
             if (target != null)
             {
+                RecordHistory();
                 double oldEnd = target.EndSeconds;
                 target.EndSeconds = CurrentTimeSeconds;
 
@@ -364,9 +432,10 @@ namespace MovieTweaks.ViewModels
 
         public void ResetCutRanges()
         {
-            Project.CutRanges.Clear();
             if (Project.SourceVideo != null)
             {
+                RecordHistory();
+                Project.CutRanges.Clear();
                 Project.CutRanges.Add(new CutRange(0, Project.SourceVideo.DurationSeconds, true));
                 StatusMessage = "カット範囲をリセットしました。";
             }
@@ -374,6 +443,7 @@ namespace MovieTweaks.ViewModels
 
         public void AddTextOverlay()
         {
+            RecordHistory();
             double start = CurrentTimeSeconds;
             double end = Math.Min(TotalDurationSeconds, start + 3.0);
             if (end <= start) end = start + 3.0;
@@ -400,6 +470,7 @@ namespace MovieTweaks.ViewModels
 
         public void AddShapeOverlay(ShapeType shapeType)
         {
+            RecordHistory();
             double start = CurrentTimeSeconds;
             double end = Math.Min(TotalDurationSeconds, start + 3.0);
             if (end <= start) end = start + 3.0;
@@ -448,6 +519,7 @@ namespace MovieTweaks.ViewModels
         public void AddImageOverlayFromFile(string imagePath)
         {
             if (!File.Exists(imagePath)) return;
+            RecordHistory();
 
             double start = CurrentTimeSeconds;
             double end = Math.Min(TotalDurationSeconds, start + 3.0);
@@ -477,12 +549,14 @@ namespace MovieTweaks.ViewModels
         {
             if (SelectedItem is OverlayItem item)
             {
+                RecordHistory();
                 Project.Overlays.Remove(item);
                 SelectedItem = Project.SourceVideo;
                 StatusMessage = "アイテムを削除しました。";
             }
             else if (SelectedItem is CutRange cr && Project.CutRanges.Count > 1)
             {
+                RecordHistory();
                 Project.CutRanges.Remove(cr);
                 SelectedItem = Project.CutRanges.FirstOrDefault() ?? (object?)Project.SourceVideo;
                 StatusMessage = "カット区間を削除しました。";
@@ -495,6 +569,7 @@ namespace MovieTweaks.ViewModels
         {
             if (SelectedOverlay != null)
             {
+                RecordHistory();
                 var clone = SelectedOverlay.Clone();
                 Project.Overlays.Add(clone);
                 SelectedOverlay = clone;

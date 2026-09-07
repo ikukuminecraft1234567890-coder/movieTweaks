@@ -1,4 +1,4 @@
-using System.IO;
+Ôªøusing System.IO;
 using System.Threading.Tasks;
 using MovieTweaks.Models;
 using MovieTweaks.Services;
@@ -22,7 +22,7 @@ namespace MovieTweaks.Tests
         {
             var original = new TextOverlay
             {
-                Text = "É^ÉCÉgÉã",
+                Text = "„Çø„Ç§„Éà„É´",
                 FontSize = 52,
                 StartTime = 1.0,
                 EndTime = 4.5,
@@ -39,7 +39,7 @@ namespace MovieTweaks.Tests
             Assert.Equal(original.TextColor, clone.TextColor);
             Assert.Equal(original.StartTime, clone.StartTime);
             Assert.Equal(original.EndTime, clone.EndTime);
-            Assert.Contains("ÉRÉsÅ[", clone.Name);
+            Assert.Contains("„Ç≥„Éî„Éº", clone.Name);
         }
 
         [Fact]
@@ -78,7 +78,7 @@ namespace MovieTweaks.Tests
 
             project.Overlays.Add(new TextOverlay
             {
-                Text = "ÉeÉXÉgÉeÉLÉXÉg",
+                Text = "„ÉÜ„Çπ„Éà„ÉÜ„Ç≠„Çπ„Éà",
                 FontSize = 36,
                 StartTime = 5.0,
                 EndTime = 10.0
@@ -118,6 +118,38 @@ namespace MovieTweaks.Tests
             Assert.Equal("00:05.5", MainViewModel.FormatTime(5.5));
             Assert.Equal("01:23.4", MainViewModel.FormatTime(83.45));
             Assert.Equal("10:00.0", MainViewModel.FormatTime(600));
+        }
+
+        [Fact]
+        public void UndoRedoService_UndoAndRedo_WorksCorrectly()
+        {
+            var project = new Project
+            {
+                SourceVideo = new VideoClip { FilePath = "test.mp4", DurationSeconds = 60 }
+            };
+            project.CutRanges.Add(new CutRange(0, 60, true));
+
+            var undoRedo = new UndoRedoService();
+            Assert.False(undoRedo.CanUndo);
+            Assert.False(undoRedo.CanRedo);
+
+            // Step 1: Record initial state and add an overlay
+            undoRedo.RecordState(project);
+            project.Overlays.Add(new TextOverlay { Text = "First Item" });
+            Assert.True(undoRedo.CanUndo);
+            Assert.Equal(1, project.Overlays.Count);
+
+            // Step 2: Undo
+            bool undone = undoRedo.Undo(project);
+            Assert.True(undone);
+            Assert.Empty(project.Overlays);
+            Assert.True(undoRedo.CanRedo);
+
+            // Step 3: Redo
+            bool redone = undoRedo.Redo(project);
+            Assert.True(redone);
+            Assert.Single(project.Overlays);
+            Assert.Equal("First Item", ((TextOverlay)project.Overlays[0]).Text);
         }
     }
 }

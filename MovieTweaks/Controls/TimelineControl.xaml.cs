@@ -84,9 +84,26 @@ namespace MovieTweaks.Controls
         private double _dragStartStartTime;
         private double _dragStartEndTime;
 
+        private readonly System.Windows.Threading.DispatcherTimer _scrubThrottler;
+        private double _pendingScrubTime = -1;
+
         public TimelineControl()
         {
             InitializeComponent();
+
+            _scrubThrottler = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(65)
+            };
+            _scrubThrottler.Tick += (s, e) =>
+            {
+                _scrubThrottler.Stop();
+                if (_pendingScrubTime >= 0)
+                {
+                    CurrentTime = _pendingScrubTime;
+                }
+            };
+
             SizeChanged += (s, e) => RedrawAll();
             Loaded += (s, e) => RedrawAll();
         }
@@ -427,13 +444,21 @@ namespace MovieTweaks.Controls
             OverlayTrackCanvas.Height = Math.Max(60, currentY + 10);
         }
 
-        private void UpdatePlayhead()
+        private void UpdatePlayheadAt(double time)
         {
-            double x = TimeToX(CurrentTime);
+            double x = TimeToX(time);
             PlayheadLine.X1 = x;
             PlayheadLine.X2 = x;
             PlayheadLine.Y2 = ActualHeight;
             Canvas.SetLeft(PlayheadHead, x - 6);
+        }
+
+        private void UpdatePlayhead()
+        {
+            if (!_isScrubbing)
+            {
+                UpdatePlayheadAt(CurrentTime);
+            }
         }
 
         private void Ruler_MouseDown(object sender, MouseButtonEventArgs e)
@@ -442,7 +467,7 @@ namespace MovieTweaks.Controls
             {
                 _isScrubbing = true;
                 RulerCanvas.CaptureMouse();
-                SeekToMouse(e.GetPosition(RulerCanvas).X);
+                SeekToMouse(e.GetPosition(RulerCanvas).X, false);
             }
         }
 
@@ -450,7 +475,7 @@ namespace MovieTweaks.Controls
         {
             if (_isScrubbing)
             {
-                SeekToMouse(e.GetPosition(RulerCanvas).X);
+                SeekToMouse(e.GetPosition(RulerCanvas).X, false);
             }
         }
 
@@ -460,6 +485,7 @@ namespace MovieTweaks.Controls
             {
                 _isScrubbing = false;
                 RulerCanvas.ReleaseMouseCapture();
+                SeekToMouse(e.GetPosition(RulerCanvas).X, true);
             }
         }
 
@@ -467,7 +493,7 @@ namespace MovieTweaks.Controls
         {
             if (e.ChangedButton == MouseButton.Left && _barDragMode == BarDragMode.None)
             {
-                SeekToMouse(e.GetPosition(VideoTrackCanvas).X);
+                SeekToMouse(e.GetPosition(VideoTrackCanvas).X, true);
             }
         }
 
@@ -502,16 +528,33 @@ namespace MovieTweaks.Controls
             }
         }
 
-        private void SeekToMouse(double x)
+        private void SeekToMouse(double x, bool isFinal = true)
         {
-            CurrentTime = XToTime(x);
+            double t = XToTime(x);
+            // Move red line visually at 60fps immediately!
+            UpdatePlayheadAt(t);
+
+            if (isFinal)
+            {
+                _scrubThrottler.Stop();
+                _pendingScrubTime = -1;
+                CurrentTime = t;
+            }
+            else
+            {
+                _pendingScrubTime = t;
+                if (!_scrubThrottler.IsEnabled)
+                {
+                    _scrubThrottler.Start();
+                }
+            }
         }
 
         private void OverlayTrack_MouseDown(object sender, MouseButtonEventArgs e)
         {
             if (e.ChangedButton == MouseButton.Left && _barDragMode == BarDragMode.None)
             {
-                SeekToMouse(e.GetPosition(OverlayTrackCanvas).X);
+                SeekToMouse(e.GetPosition(OverlayTrackCanvas).X, true);
             }
         }
 

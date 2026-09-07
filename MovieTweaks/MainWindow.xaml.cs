@@ -260,21 +260,41 @@ namespace MovieTweaks
             }
             else if (e.Key == Key.Delete)
             {
-                if (_vm.HasSelectedOverlay)
+                if (_vm.HasSelection)
                 {
-                    _vm.DeleteSelectedOverlay();
+                    _vm.DeleteSelectedCommand.Execute(null);
                     e.Handled = true;
                 }
             }
-            else if (e.Key == Key.O && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+            else if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
             {
-                _vm.OpenVideoCommand.Execute(null);
-                e.Handled = true;
-            }
-            else if (e.Key == Key.S && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
-            {
-                _vm.SaveProjectCommand.Execute(null);
-                e.Handled = true;
+                if (e.Key == Key.Z)
+                {
+                    if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+                    {
+                        _vm.RedoCommand.Execute(null);
+                    }
+                    else
+                    {
+                        _vm.UndoCommand.Execute(null);
+                    }
+                    e.Handled = true;
+                }
+                else if (e.Key == Key.Y)
+                {
+                    _vm.RedoCommand.Execute(null);
+                    e.Handled = true;
+                }
+                else if (e.Key == Key.O)
+                {
+                    _vm.OpenVideoCommand.Execute(null);
+                    e.Handled = true;
+                }
+                else if (e.Key == Key.S)
+                {
+                    _vm.SaveProjectCommand.Execute(null);
+                    e.Handled = true;
+                }
             }
         }
     }

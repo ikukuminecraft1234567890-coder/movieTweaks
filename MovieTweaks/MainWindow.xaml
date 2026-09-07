@@ -112,6 +112,12 @@
                     
                     <Separator Width="1" Margin="8,2" Background="#3E3E42"/>
 
+                    <!-- History / Undo Redo -->
+                    <Button Content="↩ 戻す" Command="{Binding UndoCommand}" ToolTip="操作を元に戻す (Ctrl+Z)"/>
+                    <Button Content="↪ 進む" Command="{Binding RedoCommand}" ToolTip="操作をやり直す (Ctrl+Y)"/>
+
+                    <Separator Width="1" Margin="8,2" Background="#3E3E42"/>
+
                     <!-- Cut Tools -->
                     <TextBlock Text="カット:" VerticalAlignment="Center" Foreground="#999999" Margin="4,0,4,0"/>
                     <Button Content="[ イン点 (I) ]" Command="{Binding SetInPointCommand}" ToolTip="現在の再生位置を開始点に設定"/>
@@ -432,7 +438,7 @@
 
                 <!-- Right: Shortcuts Hint -->
                 <StackPanel Orientation="Horizontal" Grid.Column="2" VerticalAlignment="Center">
-                    <TextBlock Text="ショートカット: [Space] 再生 | [I] イン点 | [O] アウト点 | [S] 分割 | [◀/▶] コマ送り"
+                    <TextBlock Text="ショートカット: [Space] 再生 | [Ctrl+Z] 戻す | [S] 分割 | [I/O] イン/アウト点 | [Del] 削除 | [◀/▶] コマ送り"
                                FontSize="11" Foreground="#777777"/>
                 </StackPanel>
             </Grid>
