@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -21,6 +21,7 @@ namespace MovieTweaks.ViewModels
 
         private Project _project = new();
         private double _currentTimeSeconds;
+        private bool _isSyncingFromPlayer;
         private bool _isPlaying;
         private OverlayItem? _selectedOverlay;
         private bool _isExporting;
@@ -44,8 +45,19 @@ namespace MovieTweaks.ViewModels
                 {
                     OnPropertyChanged(nameof(FormattedCurrentTime));
                     OnPropertyChanged(nameof(CurrentTimeDisplay));
+                    if (!_isSyncingFromPlayer)
+                    {
+                        RequestMediaSeek?.Invoke(_currentTimeSeconds);
+                    }
                 }
             }
+        }
+
+        public void SyncCurrentTimeFromPlayer(double seconds)
+        {
+            _isSyncingFromPlayer = true;
+            CurrentTimeSeconds = seconds;
+            _isSyncingFromPlayer = false;
         }
 
         public double TotalDurationSeconds => Project.SourceVideo?.DurationSeconds ?? 0;
@@ -116,7 +128,8 @@ namespace MovieTweaks.ViewModels
             set => SetProperty(ref _timelineZoom, Math.Clamp(value, 0.2, 5.0));
         }
 
-        // Action invoked to notify view (e.g. MediaElement) to seek
+        // Action invoked to notify view (e.g. MediaElement) to load media and seek
+        public Action<string>? RequestLoadMedia { get; set; }
         public Action<double>? RequestMediaSeek { get; set; }
         public Action? RequestMediaPlay { get; set; }
         public Action? RequestMediaPause { get; set; }
@@ -193,6 +206,9 @@ namespace MovieTweaks.ViewModels
         public async Task LoadVideoFileAsync(string filePath)
         {
             if (!File.Exists(filePath)) return;
+
+            // Notify UI element (MediaElement) to load file immediately
+            RequestLoadMedia?.Invoke(filePath);
 
             StatusMessage = "動画情報を読み込み中...";
             var clip = await _ffmpegService.ProbeVideoAsync(filePath);

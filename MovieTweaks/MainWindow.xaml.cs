@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
@@ -20,13 +20,52 @@ namespace MovieTweaks
             DataContext = _vm;
 
             // MediaElement Callbacks
-            _vm.RequestMediaPlay = () => Player.Play();
-            _vm.RequestMediaPause = () => Player.Pause();
+            _vm.RequestLoadMedia = filePath =>
+            {
+                try
+                {
+                    Player.Stop();
+                    Player.Source = new Uri(filePath, UriKind.Absolute);
+                    // Trigger preroll / decode of first frame
+                    Player.Play();
+                    Player.Pause();
+                }
+                catch (Exception ex)
+                {
+                    _vm.StatusMessage = $"動画読み込み失敗: {ex.Message}";
+                }
+            };
+
+            _vm.RequestMediaPlay = () =>
+            {
+                if (Player.Source != null)
+                {
+                    Player.Play();
+                }
+            };
+
+            _vm.RequestMediaPause = () =>
+            {
+                if (Player.Source != null)
+                {
+                    Player.Pause();
+                }
+            };
+
             _vm.RequestMediaSeek = seconds =>
             {
-                _isSeekingByCode = true;
-                Player.Position = TimeSpan.FromSeconds(seconds);
-                _isSeekingByCode = false;
+                if (Player.Source != null)
+                {
+                    _isSeekingByCode = true;
+                    Player.Position = TimeSpan.FromSeconds(seconds);
+                    // In manual mode, scrubbing requires Play+Pause cycle if paused
+                    if (!_vm.IsPlaying)
+                    {
+                        Player.Play();
+                        Player.Pause();
+                    }
+                    _isSeekingByCode = false;
+                }
             };
 
             // High-frequency sync timer for video playback position
@@ -42,7 +81,7 @@ namespace MovieTweaks
         {
             if (_vm.IsPlaying && !_isSeekingByCode && Player.NaturalDuration.HasTimeSpan)
             {
-                _vm.CurrentTimeSeconds = Player.Position.TotalSeconds;
+                _vm.SyncCurrentTimeFromPlayer(Player.Position.TotalSeconds);
             }
         }
 
@@ -55,8 +94,22 @@ namespace MovieTweaks
                     Player.NaturalVideoWidth,
                     Player.NaturalVideoHeight);
 
+                // Ensure stopped at first frame
+                Player.Position = TimeSpan.Zero;
+                Player.Pause();
+
                 UpdateVideoLayout();
             }
+        }
+
+        private void Player_MediaFailed(object? sender, ExceptionRoutedEventArgs e)
+        {
+            _vm.StatusMessage = $"⚠️ 動画の再生に対応していません: {e.ErrorException.Message}";
+            MessageBox.Show(
+                $"動画のデコードに失敗しました:\n{e.ErrorException.Message}\n\n※ Windows のコーデックパックや H.264/AAC 形式の動画であることを確認してください。",
+                "再生エラー",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
         }
 
         private void Player_MediaEnded(object sender, RoutedEventArgs e)
@@ -88,6 +141,8 @@ namespace MovieTweaks
             double actualW = videoW * scale;
             double actualH = videoH * scale;
 
+            Player.Width = actualW;
+            Player.Height = actualH;
             OverlayCanvasControl.Width = actualW;
             OverlayCanvasControl.Height = actualH;
             OverlayCanvasControl.InvalidateVisuals();
@@ -105,7 +160,6 @@ namespace MovieTweaks
 
                     if (ext is ".mp4" or ".mkv" or ".mov" or ".avi" or ".wmv" or ".webm" or ".flv" or ".m4v" or ".ts")
                     {
-                        Player.Source = new Uri(file, UriKind.Absolute);
                         await _vm.LoadVideoFileAsync(file);
                     }
                     else if (ext is ".png" or ".jpg" or ".jpeg" or ".webp" or ".bmp" or ".gif")
