@@ -145,6 +145,54 @@ namespace MovieTweaks.ViewModels
             }
         }
 
+        private bool _isScrubbing;
+        private bool _wasPlayingBeforeScrub;
+
+        public bool IsScrubbing
+        {
+            get => _isScrubbing;
+            set
+            {
+                if (SetProperty(ref _isScrubbing, value))
+                {
+                    RequestScrubStateChange?.Invoke(value);
+                    if (value)
+                    {
+                        _wasPlayingBeforeScrub = IsPlaying;
+                        if (IsPlaying)
+                        {
+                            _playbackTimer.Stop();
+                        }
+                    }
+                    else
+                    {
+                        if (_wasPlayingBeforeScrub)
+                        {
+                            _wasPlayingBeforeScrub = false;
+                            if (IsPlaying)
+                            {
+                                _lastPlaybackTick = DateTime.UtcNow;
+                                _playbackTimer.Start();
+                                RequestMediaPlay?.Invoke();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        public void SetCurrentTimeInternal(double value)
+        {
+            double clamped = Math.Clamp(value, 0, Math.Max(0.1, TotalDurationSeconds));
+            if (Math.Abs(_currentTimeSeconds - clamped) > 0.001)
+            {
+                _currentTimeSeconds = clamped;
+                OnPropertyChanged(nameof(CurrentTimeSeconds));
+                OnPropertyChanged(nameof(FormattedCurrentTime));
+                OnPropertyChanged(nameof(CurrentTimeDisplay));
+            }
+        }
+
         public string PlayPauseButtonText => IsPlaying ? "一時停止" : "再生";
 
         private object? _selectedItem;
@@ -441,6 +489,7 @@ namespace MovieTweaks.ViewModels
         public Action<double>? RequestMediaSeek { get; set; }
         public Action? RequestMediaPlay { get; set; }
         public Action? RequestMediaPause { get; set; }
+        public Action<bool>? RequestScrubStateChange { get; set; }
 
         // Commands
         public ICommand OpenVideoCommand { get; }
@@ -488,7 +537,7 @@ namespace MovieTweaks.ViewModels
             };
             _playbackTimer.Tick += (s, e) =>
             {
-                if (IsPlaying)
+                if (IsPlaying && !IsScrubbing)
                 {
                     var now = DateTime.UtcNow;
                     double dt = (now - _lastPlaybackTick).TotalSeconds;
@@ -496,7 +545,8 @@ namespace MovieTweaks.ViewModels
 
                     if (TotalDurationSeconds > 0)
                     {
-                        double next = CurrentTimeSeconds + dt;
+                        double prev = CurrentTimeSeconds;
+                        double next = prev + dt;
                         if (next >= TotalDurationSeconds)
                         {
                             Pause();
@@ -504,7 +554,17 @@ namespace MovieTweaks.ViewModels
                         }
                         else
                         {
-                            CurrentTimeSeconds = next;
+                            var prevClip = Project.CutRanges.FirstOrDefault(r => r.IsKeep && prev >= r.StartSeconds && prev < r.EndSeconds);
+                            var nextClip = Project.CutRanges.FirstOrDefault(r => r.IsKeep && next >= r.StartSeconds && next < r.EndSeconds);
+
+                            if (prevClip != nextClip)
+                            {
+                                CurrentTimeSeconds = next;
+                            }
+                            else
+                            {
+                                SetCurrentTimeInternal(next);
+                            }
                         }
                     }
                 }

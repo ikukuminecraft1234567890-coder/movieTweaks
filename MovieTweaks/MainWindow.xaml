@@ -766,6 +766,7 @@
         <controls:TimelineControl Grid.Row="3"
                                   Duration="{Binding TotalDurationSeconds}"
                                   CurrentTime="{Binding CurrentTimeSeconds, Mode=TwoWay}"
+                                  IsScrubbing="{Binding IsScrubbing, Mode=TwoWay}"
                                   CutRanges="{Binding Project.CutRanges}"
                                   Overlays="{Binding Project.Overlays}"
                                   SelectedItem="{Binding SelectedItem, Mode=TwoWay}"

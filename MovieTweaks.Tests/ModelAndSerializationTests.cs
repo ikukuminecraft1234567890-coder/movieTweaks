@@ -391,5 +391,92 @@ namespace MovieTweaks.Tests
             Assert.Contains("点線", strokeConv.Convert(StrokeStyle.Dot, typeof(string), null, culture)?.ToString());
             Assert.Contains("実線", strokeConv.Convert(StrokeStyle.Solid, typeof(string), null, culture)?.ToString());
         }
+
+        [Fact]
+        public void MainViewModel_SetClipPlaybackSpeed_SupportsHighSpeed5xAnd50x()
+        {
+            var vm = new MainViewModel();
+            vm.Project.SourceVideo = new VideoClip { DurationSeconds = 100 };
+            vm.Project.CutRanges.Clear();
+
+            var clip = new CutRange(0, 50, 0, true) { PlaybackSpeed = 1.0 };
+            vm.Project.CutRanges.Add(clip);
+
+            // 5x speed (500%): 50s source / 5.0 = 10s on timeline
+            vm.SetClipPlaybackSpeed(clip, 5.0);
+            Assert.Equal(10.0, clip.Duration);
+            Assert.Equal(5.0, clip.PlaybackSpeed);
+            Assert.Equal(500.0, clip.PlaybackSpeedPercent);
+
+            // 50x speed (5000%): 50s source / 50.0 = 1.0s on timeline
+            vm.SetClipPlaybackSpeed(clip, 50.0);
+            Assert.Equal(1.0, clip.Duration);
+            Assert.Equal(50.0, clip.PlaybackSpeed);
+            Assert.Equal(5000.0, clip.PlaybackSpeedPercent);
+        }
+
+        [Fact]
+        public void MainViewModel_Scrubbing_DuringPlayback_PausesAndResumesPlaybackAutomatically()
+        {
+            var vm = new MainViewModel();
+            vm.Project.SourceVideo = new VideoClip { DurationSeconds = 30 };
+            vm.Project.CutRanges.Clear();
+            vm.Project.CutRanges.Add(new CutRange(0, 30, 0, true));
+
+            bool scrubCallbackState = false;
+            int scrubCallbackCount = 0;
+            vm.RequestScrubStateChange = state =>
+            {
+                scrubCallbackState = state;
+                scrubCallbackCount++;
+            };
+
+            // Start playing
+            vm.IsPlaying = true;
+            Assert.True(vm.IsPlaying);
+
+            // Start scrubbing
+            vm.IsScrubbing = true;
+            Assert.True(vm.IsScrubbing);
+            Assert.True(scrubCallbackState);
+            Assert.Equal(1, scrubCallbackCount);
+
+            // Finish scrubbing -> should automatically resume playback!
+            vm.IsScrubbing = false;
+            Assert.False(vm.IsScrubbing);
+            Assert.False(scrubCallbackState);
+            Assert.Equal(2, scrubCallbackCount);
+            Assert.True(vm.IsPlaying);
+        }
+
+        [Fact]
+        public void MainViewModel_SetCurrentTimeInternal_UpdatesDisplayWithoutTriggeringSeek()
+        {
+            var vm = new MainViewModel();
+            vm.Project.SourceVideo = new VideoClip { DurationSeconds = 60 };
+            vm.Project.CutRanges.Clear();
+            vm.Project.CutRanges.Add(new CutRange(0, 60, 0, true));
+
+            int seekCallCount = 0;
+            double lastSeekTime = -1;
+            vm.RequestMediaSeek = time =>
+            {
+                seekCallCount++;
+                lastSeekTime = time;
+            };
+
+            // Calling SetCurrentTimeInternal (as used during continuous in-clip playback)
+            vm.SetCurrentTimeInternal(15.5);
+            Assert.Equal(15.5, vm.CurrentTimeSeconds);
+            Assert.Contains("00:15.5", vm.CurrentTimeDisplay);
+            // Must NOT have called RequestMediaSeek!
+            Assert.Equal(0, seekCallCount);
+
+            // Calling CurrentTimeSeconds setter (as used by explicit seek/cut boundary jump)
+            vm.CurrentTimeSeconds = 25.0;
+            Assert.Equal(25.0, vm.CurrentTimeSeconds);
+            Assert.Equal(1, seekCallCount);
+            Assert.Equal(25.0, lastSeekTime);
+        }
     }
 }

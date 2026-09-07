@@ -20,9 +20,9 @@ namespace MovieTweaks
             DataContext = _vm;
 
             // Debounce timer for smooth seek without freeze or click noise
-            _scrubDebounceTimer = new DispatcherTimer(DispatcherPriority.Normal)
+            _scrubDebounceTimer = new DispatcherTimer(DispatcherPriority.Input)
             {
-                Interval = TimeSpan.FromMilliseconds(40)
+                Interval = TimeSpan.FromMilliseconds(30)
             };
             _scrubDebounceTimer.Tick += (s, e) =>
             {
@@ -31,6 +31,34 @@ namespace MovieTweaks
                 {
                     Player.Position = TimeSpan.FromSeconds(_pendingSeekSeconds);
                     _pendingSeekSeconds = -1;
+                }
+            };
+
+            // Scrub state change callback
+            _vm.RequestScrubStateChange = isScrubbing =>
+            {
+                if (Player.Source == null) return;
+
+                if (isScrubbing)
+                {
+                    // Immediately mute audio and force 1.0x speed ratio to prevent DAC pops and decoder freeze
+                    Player.IsMuted = true;
+                    Player.Volume = 0;
+                    Player.SpeedRatio = 1.0;
+                    if (Player.CanPause)
+                    {
+                        Player.Pause();
+                    }
+                }
+                else
+                {
+                    // Scrub finished: flush any pending seek position immediately
+                    if (_pendingSeekSeconds >= 0)
+                    {
+                        _scrubDebounceTimer.Stop();
+                        Player.Position = TimeSpan.FromSeconds(_pendingSeekSeconds);
+                        _pendingSeekSeconds = -1;
+                    }
                 }
             };
 
@@ -43,6 +71,8 @@ namespace MovieTweaks
                     Player.Source = new Uri(filePath, UriKind.Absolute);
                     // Safe initial preroll without audio noise
                     Player.IsMuted = true;
+                    Player.Volume = 0;
+                    Player.SpeedRatio = 1.0;
                     Player.Play();
                     Player.Pause();
                 }
@@ -62,9 +92,12 @@ namespace MovieTweaks
 
             _vm.RequestMediaPause = () =>
             {
-                if (Player.Source != null && Player.CanPause)
+                if (Player.Source != null)
                 {
-                    Player.Pause();
+                    if (Player.CanPause) Player.Pause();
+                    Player.IsMuted = true;
+                    Player.Volume = 0;
+                    Player.SpeedRatio = 1.0;
                 }
             };
 
@@ -81,31 +114,15 @@ namespace MovieTweaks
                     }
 
                     double sourceTime = activeClip.SourceStartSeconds + (seconds - activeClip.StartSeconds) * activeClip.PlaybackSpeed;
-                    Player.Volume = Math.Clamp(activeClip.Volume, 0.0, 1.0);
-                    
                     double targetSpeed = activeClip.PlaybackSpeed;
-                    if (Math.Abs(Player.SpeedRatio - targetSpeed) > 0.01)
-                    {
-                        Player.SpeedRatio = targetSpeed;
-                        if (_vm.IsPlaying)
-                        {
-                            Player.Pause();
-                            Player.Play();
-                        }
-                    }
 
-                    if (_vm.IsPlaying)
+                    if (_vm.IsScrubbing)
                     {
-                        Player.IsMuted = false;
-                        if (Math.Abs(Player.Position.TotalSeconds - sourceTime) > 0.25)
-                        {
-                            Player.Position = TimeSpan.FromSeconds(sourceTime);
-                        }
-                        Player.Play();
-                    }
-                    else
-                    {
+                        // SCRUBBING MODE:
+                        // Always mute audio, force SpeedRatio = 1.0 to prevent audio pop & preroll freeze
                         Player.IsMuted = true;
+                        Player.Volume = 0;
+                        Player.SpeedRatio = 1.0;
                         _pendingSeekSeconds = sourceTime;
 
                         if (!_scrubDebounceTimer.IsEnabled)
@@ -114,15 +131,43 @@ namespace MovieTweaks
                             _scrubDebounceTimer.Start();
                         }
                     }
+                    else if (_vm.IsPlaying)
+                    {
+                        // PLAYBACK MODE:
+                        // In NLE industry standard, audio at > 2.0x causes WASAPI underflow clicks.
+                        // Mute live preview audio when speed > 2.0; unmute when <= 2.0.
+                        bool shouldMute = targetSpeed > 2.0;
+                        Player.IsMuted = shouldMute;
+                        Player.Volume = shouldMute ? 0 : Math.Clamp(activeClip.Volume, 0.0, 1.0);
+
+                        double previewSpeed = Math.Clamp(targetSpeed, 0.1, 5.0);
+                        if (Math.Abs(Player.SpeedRatio - previewSpeed) > 0.01)
+                        {
+                            Player.SpeedRatio = previewSpeed;
+                        }
+
+                        Player.Position = TimeSpan.FromSeconds(sourceTime);
+                        Player.Play();
+                    }
+                    else
+                    {
+                        // STOPPED / PAUSED MODE:
+                        // Silent, SpeedRatio 1.0, single seek for instant crisp preview
+                        Player.IsMuted = true;
+                        Player.Volume = 0;
+                        Player.SpeedRatio = 1.0;
+                        Player.Position = TimeSpan.FromSeconds(sourceTime);
+                    }
                 }
                 else
                 {
-                    // Gap: Blank video (black canvas) and silence (muted)
+                    // Blank gap
                     if (Player.Visibility != Visibility.Hidden)
                     {
                         Player.Visibility = Visibility.Hidden;
                     }
                     Player.IsMuted = true;
+                    Player.Volume = 0;
                     if (Player.CanPause)
                     {
                         Player.Pause();

@@ -22,6 +22,10 @@ namespace MovieTweaks.Controls
             DependencyProperty.Register(nameof(CurrentTime), typeof(double), typeof(TimelineControl),
                 new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnCurrentTimeChanged));
 
+        public static readonly DependencyProperty IsScrubbingProperty =
+            DependencyProperty.Register(nameof(IsScrubbing), typeof(bool), typeof(TimelineControl),
+                new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
         public static readonly DependencyProperty CutRangesProperty =
             DependencyProperty.Register(nameof(CutRanges), typeof(System.Collections.IEnumerable), typeof(TimelineControl),
                 new PropertyMetadata(null, OnCutRangesChanged));
@@ -50,6 +54,12 @@ namespace MovieTweaks.Controls
             set => SetValue(CurrentTimeProperty, value);
         }
 
+        public bool IsScrubbing
+        {
+            get => (bool)GetValue(IsScrubbingProperty);
+            set => SetValue(IsScrubbingProperty, value);
+        }
+
         public System.Collections.IEnumerable? CutRanges
         {
             get => (System.Collections.IEnumerable?)GetValue(CutRangesProperty);
@@ -75,7 +85,6 @@ namespace MovieTweaks.Controls
         }
 
         // Interaction state
-        private bool _isScrubbing;
         private enum BarDragMode { None, Slide, TrimLeft, TrimRight }
         private BarDragMode _barDragMode = BarDragMode.None;
         private OverlayItem? _draggingOverlay;
@@ -92,16 +101,46 @@ namespace MovieTweaks.Controls
         {
             InitializeComponent();
 
-            _scrubThrottler = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
+            _scrubThrottler = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Input)
             {
-                Interval = TimeSpan.FromMilliseconds(65)
+                Interval = TimeSpan.FromMilliseconds(30)
             };
             _scrubThrottler.Tick += (s, e) =>
             {
                 _scrubThrottler.Stop();
                 if (_pendingScrubTime >= 0)
                 {
-                    CurrentTime = _pendingScrubTime;
+                    double t = _pendingScrubTime;
+                    _pendingScrubTime = -1;
+                    CurrentTime = t;
+                }
+            };
+
+            RulerCanvas.LostMouseCapture += (s, e) =>
+            {
+                if (IsScrubbing)
+                {
+                    IsScrubbing = false;
+                }
+            };
+            VideoTrackCanvas.LostMouseCapture += (s, e) =>
+            {
+                if (_barDragMode != BarDragMode.None)
+                {
+                    _barDragMode = BarDragMode.None;
+                    _draggingCutRange = null;
+                    IsScrubbing = false;
+                    RedrawAll();
+                }
+            };
+            OverlayTrackCanvas.LostMouseCapture += (s, e) =>
+            {
+                if (_barDragMode != BarDragMode.None)
+                {
+                    _barDragMode = BarDragMode.None;
+                    _draggingOverlay = null;
+                    IsScrubbing = false;
+                    RedrawOverlays();
                 }
             };
 
@@ -360,6 +399,7 @@ namespace MovieTweaks.Controls
                                 clipBorder.Cursor = Cursors.SizeAll;
                             }
 
+                            IsScrubbing = true;
                             VideoTrackCanvas.CaptureMouse();
                             e.Handled = true;
                         }
@@ -450,6 +490,7 @@ namespace MovieTweaks.Controls
                             border.Cursor = Cursors.SizeAll;
                         }
 
+                        IsScrubbing = true;
                         OverlayTrackCanvas.CaptureMouse();
                         e.Handled = true;
                     }
@@ -473,7 +514,7 @@ namespace MovieTweaks.Controls
 
         private void UpdatePlayhead()
         {
-            if (!_isScrubbing)
+            if (!IsScrubbing)
             {
                 UpdatePlayheadAt(CurrentTime);
             }
@@ -483,7 +524,7 @@ namespace MovieTweaks.Controls
         {
             if (e.ChangedButton == MouseButton.Left)
             {
-                _isScrubbing = true;
+                IsScrubbing = true;
                 RulerCanvas.CaptureMouse();
                 SeekToMouse(e.GetPosition(RulerCanvas).X, false);
             }
@@ -491,7 +532,7 @@ namespace MovieTweaks.Controls
 
         private void Ruler_MouseMove(object sender, MouseEventArgs e)
         {
-            if (_isScrubbing)
+            if (IsScrubbing)
             {
                 SeekToMouse(e.GetPosition(RulerCanvas).X, false);
             }
@@ -499,11 +540,11 @@ namespace MovieTweaks.Controls
 
         private void Ruler_MouseUp(object sender, MouseButtonEventArgs e)
         {
-            if (_isScrubbing)
+            if (IsScrubbing)
             {
-                _isScrubbing = false;
                 RulerCanvas.ReleaseMouseCapture();
                 SeekToMouse(e.GetPosition(RulerCanvas).X, true);
+                IsScrubbing = false;
             }
         }
 
@@ -553,6 +594,7 @@ namespace MovieTweaks.Controls
             {
                 _draggingCutRange = null;
                 _barDragMode = BarDragMode.None;
+                IsScrubbing = false;
                 VideoTrackCanvas.ReleaseMouseCapture();
                 RedrawAll();
             }
@@ -560,7 +602,7 @@ namespace MovieTweaks.Controls
 
         private void SeekToMouse(double x, bool isFinal = true)
         {
-            double t = XToTime(x);
+            double t = Math.Clamp(XToTime(x), 0, Math.Max(0.1, Duration));
             // Move red line visually at 60fps immediately!
             UpdatePlayheadAt(t);
 
@@ -627,6 +669,7 @@ namespace MovieTweaks.Controls
             {
                 _barDragMode = BarDragMode.None;
                 _draggingOverlay = null;
+                IsScrubbing = false;
                 OverlayTrackCanvas.ReleaseMouseCapture();
             }
         }
