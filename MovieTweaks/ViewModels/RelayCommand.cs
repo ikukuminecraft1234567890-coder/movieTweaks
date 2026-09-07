@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows.Input;
 
 namespace MovieTweaks.ViewModels
@@ -45,13 +45,27 @@ namespace MovieTweaks.ViewModels
         public bool CanExecute(object? parameter)
         {
             if (_canExecute == null) return true;
-            if (parameter == null && typeof(T).IsValueType) return _canExecute(default);
-            return _canExecute((T?)parameter);
+            return _canExecute(TryConvert(parameter));
         }
 
         public void Execute(object? parameter)
         {
-            _execute((T?)parameter);
+            _execute(TryConvert(parameter));
+        }
+
+        private static T? TryConvert(object? parameter)
+        {
+            if (parameter is T t) return t;
+            if (parameter != null)
+            {
+                try
+                {
+                    Type targetType = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
+                    return (T?)Convert.ChangeType(parameter, targetType);
+                }
+                catch { }
+            }
+            return default;
         }
     }
 }

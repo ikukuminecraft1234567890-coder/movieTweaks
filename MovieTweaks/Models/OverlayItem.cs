@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text.Json.Serialization;
 using MovieTweaks.ViewModels;
 
@@ -82,7 +82,38 @@ namespace MovieTweaks.Models
         public double Opacity
         {
             get => _opacity;
-            set => SetProperty(ref _opacity, value);
+            set
+            {
+                if (SetProperty(ref _opacity, Math.Clamp(value, 0.0, 1.0)))
+                {
+                    OnPropertyChanged(nameof(OpacityPercent));
+                }
+            }
+        }
+
+        [JsonIgnore]
+        public double OpacityPercent
+        {
+            get => Math.Round(_opacity * 100, 1);
+            set => Opacity = value / 100.0;
+        }
+
+        private double _scalePercent = 100.0;
+        [JsonIgnore]
+        public double ScalePercent
+        {
+            get => _scalePercent;
+            set
+            {
+                if (value <= 0) return;
+                double oldScale = _scalePercent;
+                if (SetProperty(ref _scalePercent, value))
+                {
+                    double ratio = value / oldScale;
+                    Width = Math.Max(10, Math.Round(Width * ratio, 1));
+                    Height = Math.Max(10, Math.Round(Height * ratio, 1));
+                }
+            }
         }
 
         [JsonIgnore]

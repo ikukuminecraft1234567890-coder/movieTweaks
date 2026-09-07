@@ -332,8 +332,22 @@ namespace MovieTweaks.Services
                 else if (segments.Count == 1 && !segments[0].isGap && segments[0].clip!.StartSeconds < 0.05)
                 {
                     var r = segments[0].clip!;
-                    filterComplex.Append($"[0:v]trim=start={r.SourceStartSeconds.ToString("F3", CultureInfo.InvariantCulture)}:duration={r.Duration.ToString("F3", CultureInfo.InvariantCulture)},setpts=PTS-STARTPTS[vcut];");
-                    filterComplex.Append($"[0:a]atrim=start={r.SourceStartSeconds.ToString("F3", CultureInfo.InvariantCulture)}:duration={r.Duration.ToString("F3", CultureInfo.InvariantCulture)},asetpts=PTS-STARTPTS[acut];");
+                    double sourceDuration = r.Duration * r.PlaybackSpeed;
+                    string vpts = Math.Abs(r.PlaybackSpeed - 1.0) > 0.001
+                        ? $"(PTS-STARTPTS)/{r.PlaybackSpeed.ToString("F3", CultureInfo.InvariantCulture)}"
+                        : "PTS-STARTPTS";
+                    filterComplex.Append($"[0:v]trim=start={r.SourceStartSeconds.ToString("F3", CultureInfo.InvariantCulture)}:duration={sourceDuration.ToString("F3", CultureInfo.InvariantCulture)},setpts={vpts}[vcut];");
+
+                    string aFilter = $"[0:a]atrim=start={r.SourceStartSeconds.ToString("F3", CultureInfo.InvariantCulture)}:duration={sourceDuration.ToString("F3", CultureInfo.InvariantCulture)},asetpts=PTS-STARTPTS";
+                    if (Math.Abs(r.PlaybackSpeed - 1.0) > 0.001)
+                    {
+                        aFilter += $",{BuildAtempoFilter(r.PlaybackSpeed)}";
+                    }
+                    if (Math.Abs(r.Volume - 1.0) > 0.001)
+                    {
+                        aFilter += $",volume={r.Volume.ToString("F3", CultureInfo.InvariantCulture)}";
+                    }
+                    filterComplex.Append($"{aFilter}[acut];");
                     currentVideoTag = "[vcut]";
                 }
                 else
@@ -350,8 +364,22 @@ namespace MovieTweaks.Services
                         else
                         {
                             var r = seg.clip!;
-                            filterComplex.Append($"[0:v]trim=start={r.SourceStartSeconds.ToString("F3", CultureInfo.InvariantCulture)}:duration={r.Duration.ToString("F3", CultureInfo.InvariantCulture)},setpts=PTS-STARTPTS[v{k}];");
-                            filterComplex.Append($"[0:a]atrim=start={r.SourceStartSeconds.ToString("F3", CultureInfo.InvariantCulture)}:duration={r.Duration.ToString("F3", CultureInfo.InvariantCulture)},asetpts=PTS-STARTPTS[a{k}];");
+                            double sourceDuration = r.Duration * r.PlaybackSpeed;
+                            string vpts = Math.Abs(r.PlaybackSpeed - 1.0) > 0.001
+                                ? $"(PTS-STARTPTS)/{r.PlaybackSpeed.ToString("F3", CultureInfo.InvariantCulture)}"
+                                : "PTS-STARTPTS";
+                            filterComplex.Append($"[0:v]trim=start={r.SourceStartSeconds.ToString("F3", CultureInfo.InvariantCulture)}:duration={sourceDuration.ToString("F3", CultureInfo.InvariantCulture)},setpts={vpts}[v{k}];");
+
+                            string aFilter = $"[0:a]atrim=start={r.SourceStartSeconds.ToString("F3", CultureInfo.InvariantCulture)}:duration={sourceDuration.ToString("F3", CultureInfo.InvariantCulture)},asetpts=PTS-STARTPTS";
+                            if (Math.Abs(r.PlaybackSpeed - 1.0) > 0.001)
+                            {
+                                aFilter += $",{BuildAtempoFilter(r.PlaybackSpeed)}";
+                            }
+                            if (Math.Abs(r.Volume - 1.0) > 0.001)
+                            {
+                                aFilter += $",volume={r.Volume.ToString("F3", CultureInfo.InvariantCulture)}";
+                            }
+                            filterComplex.Append($"{aFilter}[a{k}];");
                         }
                         concatInputs.Append($"[v{k}][a{k}]");
                     }
@@ -462,6 +490,24 @@ namespace MovieTweaks.Services
             {
                 throw new Exception($"FFmpeg exited with error code {process.ExitCode}");
             }
+        }
+
+        private static string BuildAtempoFilter(double speed)
+        {
+            var sb = new StringBuilder();
+            double current = speed;
+            while (current > 2.0)
+            {
+                sb.Append("atempo=2.0,");
+                current /= 2.0;
+            }
+            while (current < 0.5 && current > 0.01)
+            {
+                sb.Append("atempo=0.5,");
+                current /= 0.5;
+            }
+            sb.Append($"atempo={current.ToString("F3", CultureInfo.InvariantCulture)}");
+            return sb.ToString();
         }
     }
 }

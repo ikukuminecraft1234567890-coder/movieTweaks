@@ -137,7 +137,7 @@ namespace MovieTweaks.Tests
             undoRedo.RecordState(project);
             project.Overlays.Add(new TextOverlay { Text = "First Item" });
             Assert.True(undoRedo.CanUndo);
-            Assert.Equal(1, project.Overlays.Count);
+            Assert.Single(project.Overlays);
 
             // Step 2: Undo
             bool undone = undoRedo.Undo(project);
@@ -207,6 +207,81 @@ namespace MovieTweaks.Tests
             Assert.Equal(50, vm.Project.CutRanges[2].StartSeconds);
             Assert.Equal(100, vm.Project.CutRanges[2].EndSeconds);
             Assert.Equal(50, vm.Project.CutRanges[2].SourceStartSeconds);
+        }
+
+        [Fact]
+        public void PercentConverter_ConvertsBidirectionally_AllowsValuesAbove100()
+        {
+            var conv = MovieTweaks.Controls.PercentConverter.Instance;
+
+            // Convert to string
+            Assert.Equal("150%", conv.Convert(150.0, typeof(string), null, System.Globalization.CultureInfo.InvariantCulture));
+            Assert.Equal("200%", conv.Convert(200, typeof(string), null, System.Globalization.CultureInfo.InvariantCulture));
+
+            // ConvertBack from string
+            Assert.Equal(150.0, conv.ConvertBack("150%", typeof(double), null, System.Globalization.CultureInfo.InvariantCulture));
+            Assert.Equal(250.0, conv.ConvertBack("250", typeof(double), null, System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        [Fact]
+        public void UnitConverter_ConvertsBidirectionally()
+        {
+            var conv = MovieTweaks.Controls.UnitConverter.Instance;
+
+            Assert.Equal("48 pt", conv.Convert(48.0, typeof(string), "pt", System.Globalization.CultureInfo.InvariantCulture));
+            Assert.Equal(48.0, conv.ConvertBack("48 pt", typeof(double), "pt", System.Globalization.CultureInfo.InvariantCulture));
+            Assert.Equal(12.0, conv.ConvertBack("12px", typeof(double), "px", System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        [Fact]
+        public void VolumeAndSpeedPercent_AllowsValuesAbove100Percent()
+        {
+            var clip = new CutRange(0, 10, 0, true);
+
+            // Volume > 100%
+            clip.VolumePercent = 250;
+            Assert.Equal(2.5, clip.Volume);
+            Assert.Equal(250.0, clip.VolumePercent);
+
+            // PlaybackSpeed > 100%
+            clip.PlaybackSpeedPercent = 200;
+            Assert.Equal(2.0, clip.PlaybackSpeed);
+            Assert.Equal(200.0, clip.PlaybackSpeedPercent);
+        }
+
+        [Fact]
+        public void MainViewModel_SetClipPlaybackSpeed_RecalculatesTimelineDurationAndRipples()
+        {
+            var vm = new MainViewModel();
+            vm.Project.SourceVideo = new VideoClip { DurationSeconds = 20 };
+            vm.Project.CutRanges.Clear();
+
+            // 2 clips: [0, 10] and [10, 20]
+            var clip1 = new CutRange(0, 10, 0, true) { PlaybackSpeed = 1.0 };
+            var clip2 = new CutRange(10, 20, 10, true) { PlaybackSpeed = 1.0 };
+            vm.Project.CutRanges.Add(clip1);
+            vm.Project.CutRanges.Add(clip2);
+
+            // Double clip1 speed to 2.0 (200%): 10s source / 2.0 = 5s on timeline
+            vm.SetClipPlaybackSpeed(clip1, 2.0);
+
+            Assert.Equal(0, clip1.StartSeconds);
+            Assert.Equal(5.0, clip1.EndSeconds);
+            Assert.Equal(2.0, clip1.PlaybackSpeed);
+
+            // clip2 should ripple shift from 10 to 5
+            Assert.Equal(5.0, clip2.StartSeconds);
+            Assert.Equal(15.0, clip2.EndSeconds);
+        }
+
+        [Fact]
+        public void RelayCommand_ConvertsStringParameterToDouble()
+        {
+            double received = 0;
+            var cmd = new RelayCommand<double?>(val => { if (val.HasValue) received = val.Value; });
+
+            cmd.Execute("150");
+            Assert.Equal(150.0, received);
         }
     }
 }

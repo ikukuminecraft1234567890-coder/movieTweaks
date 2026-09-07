@@ -81,8 +81,18 @@ namespace MovieTweaks
                     }
 
                     double sourceTime = activeClip.SourceStartSeconds + (seconds - activeClip.StartSeconds) * activeClip.PlaybackSpeed;
-                    Player.Volume = activeClip.Volume;
-                    Player.SpeedRatio = activeClip.PlaybackSpeed;
+                    Player.Volume = Math.Clamp(activeClip.Volume, 0.0, 1.0);
+                    
+                    double targetSpeed = activeClip.PlaybackSpeed;
+                    if (Math.Abs(Player.SpeedRatio - targetSpeed) > 0.01)
+                    {
+                        Player.SpeedRatio = targetSpeed;
+                        if (_vm.IsPlaying)
+                        {
+                            Player.Pause();
+                            Player.Play();
+                        }
+                    }
 
                     if (_vm.IsPlaying)
                     {

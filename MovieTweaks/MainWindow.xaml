@@ -83,6 +83,27 @@
             <Setter Property="BorderBrush" Value="#3E3E42"/>
             <Setter Property="Padding" Value="6,4"/>
         </Style>
+
+        <!-- Compact Preset Button Style -->
+        <Style x:Key="PresetButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Padding" Value="4,1"/>
+            <Setter Property="Margin" Value="1,0"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Background" Value="#2A2A2D"/>
+            <Setter Property="BorderBrush" Value="#444444"/>
+            <Setter Property="MinHeight" Value="18"/>
+        </Style>
+
+        <!-- Compact Value Input Box Style -->
+        <Style x:Key="ValueInputBoxStyle" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Width" Value="56"/>
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="Padding" Value="3,1"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextAlignment" Value="Right"/>
+            <Setter Property="FontFamily" Value="Consolas, Segoe UI"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -276,13 +297,45 @@
 
                             <Separator Margin="0,10" Background="#333333"/>
 
-                            <!-- Volume Control -->
-                            <TextBlock Text="{Binding SelectedVideoClip.Volume, StringFormat='音量: {0:P0}'}" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,2"/>
-                            <Slider Minimum="0" Maximum="1" Value="{Binding SelectedVideoClip.Volume}" SmallChange="0.05" LargeChange="0.1"/>
+                            <!-- Volume Control (% Notation, allows > 100%) -->
+                            <Grid Margin="0,4,0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="音量" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1" Style="{StaticResource ValueInputBoxStyle}"
+                                         Text="{Binding CurrentVolumePercent, Converter={x:Static controls:PercentConverter.Instance}, UpdateSourceTrigger=LostFocus}"/>
+                            </Grid>
+                            <Slider Minimum="0" Maximum="300" Value="{Binding CurrentVolumePercent}" SmallChange="5" LargeChange="25"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,2,0,6">
+                                <Button Content="0%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetVolumePresetCommand}" CommandParameter="0"/>
+                                <Button Content="50%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetVolumePresetCommand}" CommandParameter="50"/>
+                                <Button Content="100%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetVolumePresetCommand}" CommandParameter="100"/>
+                                <Button Content="150%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetVolumePresetCommand}" CommandParameter="150"/>
+                                <Button Content="200%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetVolumePresetCommand}" CommandParameter="200"/>
+                                <Button Content="300%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetVolumePresetCommand}" CommandParameter="300"/>
+                            </StackPanel>
 
-                            <!-- Playback Speed Control -->
-                            <TextBlock Text="{Binding SelectedVideoClip.PlaybackSpeed, StringFormat='再生速度: {0:F2}x'}" Foreground="#AAAAAA" FontSize="11" Margin="0,8,0,2"/>
-                            <Slider Minimum="0.25" Maximum="2.0" Value="{Binding SelectedVideoClip.PlaybackSpeed}" SmallChange="0.25" LargeChange="0.5"/>
+                            <!-- Playback Speed Control (% Notation, allows > 100%) -->
+                            <Grid Margin="0,6,0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="再生速度" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1" Style="{StaticResource ValueInputBoxStyle}"
+                                         Text="{Binding CurrentPlaybackSpeedPercent, Converter={x:Static controls:PercentConverter.Instance}, UpdateSourceTrigger=LostFocus}"/>
+                            </Grid>
+                            <Slider Minimum="25" Maximum="400" Value="{Binding CurrentPlaybackSpeedPercent}" SmallChange="5" LargeChange="25"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,2,0,6">
+                                <Button Content="50%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetSpeedPresetCommand}" CommandParameter="50"/>
+                                <Button Content="75%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetSpeedPresetCommand}" CommandParameter="75"/>
+                                <Button Content="100%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetSpeedPresetCommand}" CommandParameter="100"/>
+                                <Button Content="125%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetSpeedPresetCommand}" CommandParameter="125"/>
+                                <Button Content="150%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetSpeedPresetCommand}" CommandParameter="150"/>
+                                <Button Content="200%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetSpeedPresetCommand}" CommandParameter="200"/>
+                            </StackPanel>
 
                             <Separator Margin="0,10" Background="#333333"/>
 
@@ -355,8 +408,43 @@
                                 </StackPanel>
                             </Grid>
 
-                            <TextBlock Text="不透明度 (Opacity)" Foreground="#AAAAAA" FontSize="11" Margin="0,8,0,2"/>
-                            <Slider Minimum="0" Maximum="1" Value="{Binding SelectedOverlay.Opacity}" SmallChange="0.05" LargeChange="0.1"/>
+                            <!-- Opacity (%) -->
+                            <Grid Margin="0,8,0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="不透明度" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1" Style="{StaticResource ValueInputBoxStyle}"
+                                         Text="{Binding CurrentOpacityPercent, Converter={x:Static controls:PercentConverter.Instance}, UpdateSourceTrigger=LostFocus}"/>
+                            </Grid>
+                            <Slider Minimum="0" Maximum="100" Value="{Binding CurrentOpacityPercent}" SmallChange="5" LargeChange="10"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,2,0,6">
+                                <Button Content="0%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetOpacityPresetCommand}" CommandParameter="0"/>
+                                <Button Content="25%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetOpacityPresetCommand}" CommandParameter="25"/>
+                                <Button Content="50%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetOpacityPresetCommand}" CommandParameter="50"/>
+                                <Button Content="75%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetOpacityPresetCommand}" CommandParameter="75"/>
+                                <Button Content="100%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetOpacityPresetCommand}" CommandParameter="100"/>
+                            </StackPanel>
+
+                            <!-- Scale (%) -->
+                            <Grid Margin="0,6,0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="拡大率 (サイズ %)" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1" Style="{StaticResource ValueInputBoxStyle}"
+                                         Text="{Binding CurrentScalePercent, Converter={x:Static controls:PercentConverter.Instance}, UpdateSourceTrigger=LostFocus}"/>
+                            </Grid>
+                            <Slider Minimum="20" Maximum="300" Value="{Binding CurrentScalePercent}" SmallChange="5" LargeChange="20"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,2,0,6">
+                                <Button Content="50%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetScalePresetCommand}" CommandParameter="50"/>
+                                <Button Content="75%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetScalePresetCommand}" CommandParameter="75"/>
+                                <Button Content="100%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetScalePresetCommand}" CommandParameter="100"/>
+                                <Button Content="150%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetScalePresetCommand}" CommandParameter="150"/>
+                                <Button Content="200%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetScalePresetCommand}" CommandParameter="200"/>
+                            </StackPanel>
 
                             <Separator Margin="0,12" Background="#333333"/>
 
@@ -365,8 +453,16 @@
                                 <TextBlock Text="文字内容" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,2"/>
                                 <TextBox Text="{Binding SelectedOverlay.Text, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" Height="60" TextWrapping="Wrap"/>
 
-                                <TextBlock Text="フォントサイズ" Foreground="#AAAAAA" FontSize="11" Margin="0,8,0,2"/>
-                                <Slider Minimum="16" Maximum="140" Value="{Binding SelectedOverlay.FontSize}"/>
+                                <Grid Margin="0,8,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="フォントサイズ" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"/>
+                                    <TextBox Grid.Column="1" Style="{StaticResource ValueInputBoxStyle}"
+                                             Text="{Binding SelectedTextOverlay.FontSize, Converter={x:Static controls:UnitConverter.Instance}, ConverterParameter='pt', UpdateSourceTrigger=LostFocus}"/>
+                                </Grid>
+                                <Slider Minimum="12" Maximum="140" Value="{Binding SelectedTextOverlay.FontSize}"/>
 
                                 <Grid Margin="0,8,0,0">
                                     <Grid.ColumnDefinitions>
@@ -383,14 +479,30 @@
                                     </StackPanel>
                                 </Grid>
 
-                                <TextBlock Text="縁取りの太さ" Foreground="#AAAAAA" FontSize="11" Margin="0,8,0,2"/>
-                                <Slider Minimum="0" Maximum="10" Value="{Binding SelectedOverlay.OutlineThickness}"/>
+                                <Grid Margin="0,8,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="縁取りの太さ" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"/>
+                                    <TextBox Grid.Column="1" Style="{StaticResource ValueInputBoxStyle}"
+                                             Text="{Binding SelectedTextOverlay.OutlineThickness, Converter={x:Static controls:UnitConverter.Instance}, ConverterParameter='px', UpdateSourceTrigger=LostFocus}"/>
+                                </Grid>
+                                <Slider Minimum="0" Maximum="20" Value="{Binding SelectedTextOverlay.OutlineThickness}"/>
 
                                 <TextBlock Text="背景色 (HEX / Transparent)" Foreground="#AAAAAA" FontSize="11" Margin="0,8,0,2"/>
                                 <TextBox Text="{Binding SelectedOverlay.BackgroundColor, UpdateSourceTrigger=PropertyChanged}"/>
 
-                                <TextBlock Text="背景の角丸" Foreground="#AAAAAA" FontSize="11" Margin="0,8,0,2"/>
-                                <Slider Minimum="0" Maximum="30" Value="{Binding SelectedOverlay.BackgroundCornerRadius}"/>
+                                <Grid Margin="0,8,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="背景の角丸" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"/>
+                                    <TextBox Grid.Column="1" Style="{StaticResource ValueInputBoxStyle}"
+                                             Text="{Binding SelectedTextOverlay.BackgroundCornerRadius, Converter={x:Static controls:UnitConverter.Instance}, ConverterParameter='px', UpdateSourceTrigger=LostFocus}"/>
+                                </Grid>
+                                <Slider Minimum="0" Maximum="40" Value="{Binding SelectedTextOverlay.BackgroundCornerRadius}"/>
 
                                 <CheckBox Content="太字 (Bold)" IsChecked="{Binding SelectedOverlay.IsBold}" Margin="0,8,0,0" Foreground="#E0E0E0"/>
                             </StackPanel>
@@ -403,11 +515,27 @@
                                 <TextBlock Text="塗りつぶし色 (HEX / Transparent)" Foreground="#AAAAAA" FontSize="11" Margin="0,8,0,2"/>
                                 <TextBox Text="{Binding SelectedOverlay.FillColor, UpdateSourceTrigger=PropertyChanged}"/>
 
-                                <TextBlock Text="線の太さ" Foreground="#AAAAAA" FontSize="11" Margin="0,8,0,2"/>
-                                <Slider Minimum="1" Maximum="30" Value="{Binding SelectedOverlay.StrokeThickness}"/>
+                                <Grid Margin="0,8,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="線の太さ" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"/>
+                                    <TextBox Grid.Column="1" Style="{StaticResource ValueInputBoxStyle}"
+                                             Text="{Binding SelectedShapeOverlay.StrokeThickness, Converter={x:Static controls:UnitConverter.Instance}, ConverterParameter='px', UpdateSourceTrigger=LostFocus}"/>
+                                </Grid>
+                                <Slider Minimum="1" Maximum="30" Value="{Binding SelectedShapeOverlay.StrokeThickness}"/>
 
-                                <TextBlock Text="角丸 (四角形)" Foreground="#AAAAAA" FontSize="11" Margin="0,8,0,2"/>
-                                <Slider Minimum="0" Maximum="40" Value="{Binding SelectedOverlay.CornerRadius}"/>
+                                <Grid Margin="0,8,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="角丸 (四角形)" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"/>
+                                    <TextBox Grid.Column="1" Style="{StaticResource ValueInputBoxStyle}"
+                                             Text="{Binding SelectedShapeOverlay.CornerRadius, Converter={x:Static controls:UnitConverter.Instance}, ConverterParameter='px', UpdateSourceTrigger=LostFocus}"/>
+                                </Grid>
+                                <Slider Minimum="0" Maximum="40" Value="{Binding SelectedShapeOverlay.CornerRadius}"/>
                             </StackPanel>
 
                             <!-- IMAGE SPECIFIC CONTROLS -->
@@ -452,10 +580,14 @@
                            HorizontalAlignment="Center" VerticalAlignment="Center"
                            Foreground="#4EC9B0"/>
 
-                <!-- Right: Shortcuts Hint -->
+                <!-- Right: Zoom & Shortcuts Hint -->
                 <StackPanel Orientation="Horizontal" Grid.Column="2" VerticalAlignment="Center">
-                    <TextBlock Text="ショートカット: [Space] 再生 | [Ctrl+Z] 戻す | [S] 分割 | [I/O] イン/アウト点 | [Del] 削除 | [◀/▶] コマ送り"
-                               FontSize="11" Foreground="#777777"/>
+                    <TextBlock Text="ズーム:" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <Slider Minimum="20" Maximum="500" Width="80" Value="{Binding TimelineZoomPercent}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Style="{StaticResource ValueInputBoxStyle}" Width="48"
+                             Text="{Binding TimelineZoomPercent, Converter={x:Static controls:PercentConverter.Instance}, UpdateSourceTrigger=LostFocus}" Margin="0,0,12,0"/>
+                    <TextBlock Text="[Space] 再生 | [Ctrl+Z] 戻す | [S] 分割 | [I/O] イン/アウト | [Del] 削除"
+                               FontSize="11" Foreground="#777777" VerticalAlignment="Center"/>
                 </StackPanel>
             </Grid>
         </Border>

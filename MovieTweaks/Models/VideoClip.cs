@@ -56,19 +56,52 @@ namespace MovieTweaks.Models
         public double Volume
         {
             get => _volume;
-            set => SetProperty(ref _volume, Math.Clamp(value, 0.0, 1.0));
+            set => SetProperty(ref _volume, Math.Clamp(value, 0.0, 5.0));
+        }
+
+        public double VolumePercent
+        {
+            get => Math.Round(_volume * 100, 1);
+            set
+            {
+                Volume = value / 100.0;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(Volume));
+            }
         }
 
         public double PlaybackSpeed
         {
             get => _playbackSpeed;
-            set => SetProperty(ref _playbackSpeed, Math.Clamp(value, 0.25, 4.0));
+            set => SetProperty(ref _playbackSpeed, Math.Clamp(value, 0.1, 10.0));
+        }
+
+        public double PlaybackSpeedPercent
+        {
+            get => Math.Round(_playbackSpeed * 100, 1);
+            set
+            {
+                PlaybackSpeed = value / 100.0;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PlaybackSpeed));
+            }
         }
 
         public double Opacity
         {
             get => _opacity;
             set => SetProperty(ref _opacity, Math.Clamp(value, 0.0, 1.0));
+        }
+
+        public double OpacityPercent
+        {
+            get => Math.Round(_opacity * 100, 1);
+            set
+            {
+                Opacity = value / 100.0;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(Opacity));
+            }
         }
 
         public bool IsSelected

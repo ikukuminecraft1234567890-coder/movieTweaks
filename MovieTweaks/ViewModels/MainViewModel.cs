@@ -167,6 +167,13 @@ namespace MovieTweaks.ViewModels
                     OnPropertyChanged(nameof(SelectedOverlay));
                     OnPropertyChanged(nameof(SelectedVideoClip));
                     OnPropertyChanged(nameof(SelectedCutRange));
+                    OnPropertyChanged(nameof(SelectedTextOverlay));
+                    OnPropertyChanged(nameof(SelectedShapeOverlay));
+                    OnPropertyChanged(nameof(SelectedImageOverlay));
+                    OnPropertyChanged(nameof(CurrentVolumePercent));
+                    OnPropertyChanged(nameof(CurrentPlaybackSpeedPercent));
+                    OnPropertyChanged(nameof(CurrentOpacityPercent));
+                    OnPropertyChanged(nameof(CurrentScalePercent));
                     OnPropertyChanged(nameof(HasSelection));
                     OnPropertyChanged(nameof(HasSelectedOverlay));
                     OnPropertyChanged(nameof(IsVideoSelected));
@@ -186,6 +193,142 @@ namespace MovieTweaks.ViewModels
 
         public VideoClip? SelectedVideoClip => SelectedItem as VideoClip ?? (SelectedItem is CutRange ? Project.SourceVideo : null);
         public CutRange? SelectedCutRange => SelectedItem as CutRange;
+        public TextOverlay? SelectedTextOverlay => SelectedItem as TextOverlay;
+        public ShapeOverlay? SelectedShapeOverlay => SelectedItem as ShapeOverlay;
+        public ImageOverlay? SelectedImageOverlay => SelectedItem as ImageOverlay;
+
+        public double CurrentVolumePercent
+        {
+            get
+            {
+                if (SelectedCutRange != null) return SelectedCutRange.VolumePercent;
+                if (Project.SourceVideo != null) return Project.SourceVideo.VolumePercent;
+                return 100.0;
+            }
+            set
+            {
+                value = Math.Clamp(value, 0.0, 500.0);
+                if (SelectedCutRange != null)
+                {
+                    SelectedCutRange.VolumePercent = value;
+                }
+                else
+                {
+                    if (Project.CutRanges != null)
+                    {
+                        foreach (var r in Project.CutRanges)
+                        {
+                            r.VolumePercent = value;
+                        }
+                    }
+                }
+                if (Project.SourceVideo != null)
+                {
+                    Project.SourceVideo.VolumePercent = value;
+                }
+                OnPropertyChanged();
+                RequestMediaSeek?.Invoke(CurrentTimeSeconds);
+            }
+        }
+
+        public double CurrentPlaybackSpeedPercent
+        {
+            get
+            {
+                if (SelectedCutRange != null) return SelectedCutRange.PlaybackSpeedPercent;
+                if (Project.SourceVideo != null) return Project.SourceVideo.PlaybackSpeedPercent;
+                return 100.0;
+            }
+            set
+            {
+                value = Math.Clamp(value, 10.0, 1000.0);
+                double speed = value / 100.0;
+                if (SelectedCutRange != null)
+                {
+                    SetClipPlaybackSpeed(SelectedCutRange, speed);
+                }
+                else
+                {
+                    if (Project.CutRanges != null && Project.CutRanges.Count > 0)
+                    {
+                        foreach (var r in Project.CutRanges.ToList())
+                        {
+                            SetClipPlaybackSpeed(r, speed);
+                        }
+                    }
+                }
+                if (Project.SourceVideo != null)
+                {
+                    Project.SourceVideo.PlaybackSpeedPercent = value;
+                }
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CurrentPlaybackSpeedPercent));
+            }
+        }
+
+        public void SetClipPlaybackSpeed(CutRange clip, double newSpeed)
+        {
+            if (newSpeed <= 0.05 || Math.Abs(clip.PlaybackSpeed - newSpeed) < 0.001) return;
+
+            RecordHistory();
+            double sourceDuration = clip.Duration * clip.PlaybackSpeed;
+            double oldEnd = clip.EndSeconds;
+            clip.PlaybackSpeed = newSpeed;
+            double newEnd = clip.StartSeconds + (sourceDuration / newSpeed);
+            double delta = newEnd - oldEnd;
+            clip.EndSeconds = newEnd;
+
+            // Shift subsequent clips if they were adjacent or after oldEnd
+            if (Project.CutRanges != null)
+            {
+                foreach (var other in Project.CutRanges.Where(r => r != clip && r.StartSeconds >= oldEnd - 0.02))
+                {
+                    other.StartSeconds += delta;
+                    other.EndSeconds += delta;
+                }
+            }
+
+            OnPropertyChanged(nameof(TotalDurationSeconds));
+            OnPropertyChanged(nameof(FormattedTotalTime));
+            OnPropertyChanged(nameof(CurrentTimeDisplay));
+            RequestMediaSeek?.Invoke(CurrentTimeSeconds);
+        }
+
+        public double CurrentOpacityPercent
+        {
+            get
+            {
+                if (SelectedOverlay != null) return SelectedOverlay.OpacityPercent;
+                if (Project.SourceVideo != null) return Project.SourceVideo.OpacityPercent;
+                return 100.0;
+            }
+            set
+            {
+                value = Math.Clamp(value, 0.0, 100.0);
+                if (SelectedOverlay != null)
+                {
+                    SelectedOverlay.OpacityPercent = value;
+                }
+                if (Project.SourceVideo != null)
+                {
+                    Project.SourceVideo.OpacityPercent = value;
+                }
+                OnPropertyChanged();
+            }
+        }
+
+        public double CurrentScalePercent
+        {
+            get => SelectedOverlay?.ScalePercent ?? 100.0;
+            set
+            {
+                if (SelectedOverlay != null)
+                {
+                    SelectedOverlay.ScalePercent = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         public bool HasSelection => SelectedItem != null;
         public bool HasSelectedOverlay => SelectedItem is OverlayItem;
@@ -216,7 +359,19 @@ namespace MovieTweaks.ViewModels
         public double TimelineZoom
         {
             get => _timelineZoom;
-            set => SetProperty(ref _timelineZoom, Math.Clamp(value, 0.2, 5.0));
+            set
+            {
+                if (SetProperty(ref _timelineZoom, Math.Clamp(value, 0.2, 5.0)))
+                {
+                    OnPropertyChanged(nameof(TimelineZoomPercent));
+                }
+            }
+        }
+
+        public double TimelineZoomPercent
+        {
+            get => Math.Round(TimelineZoom * 100, 0);
+            set => TimelineZoom = value / 100.0;
         }
 
         // Action invoked to notify view (e.g. MediaElement) to load media and seek
@@ -238,6 +393,10 @@ namespace MovieTweaks.ViewModels
         public ICommand SelectVideoCommand { get; }
         public ICommand UndoCommand { get; }
         public ICommand RedoCommand { get; }
+        public ICommand SetVolumePresetCommand { get; }
+        public ICommand SetSpeedPresetCommand { get; }
+        public ICommand SetOpacityPresetCommand { get; }
+        public ICommand SetScalePresetCommand { get; }
         public ICommand AddTextOverlayCommand { get; }
         public ICommand AddShapeOverlayCommand { get; }
         public ICommand AddImageOverlayCommand { get; }
@@ -301,6 +460,11 @@ namespace MovieTweaks.ViewModels
 
             UndoCommand = new RelayCommand(Undo, () => CanUndo);
             RedoCommand = new RelayCommand(Redo, () => CanRedo);
+
+            SetVolumePresetCommand = new RelayCommand<double?>(pct => { if (pct.HasValue) CurrentVolumePercent = pct.Value; });
+            SetSpeedPresetCommand = new RelayCommand<double?>(pct => { if (pct.HasValue) CurrentPlaybackSpeedPercent = pct.Value; });
+            SetOpacityPresetCommand = new RelayCommand<double?>(pct => { if (pct.HasValue) CurrentOpacityPercent = pct.Value; });
+            SetScalePresetCommand = new RelayCommand<double?>(pct => { if (pct.HasValue) CurrentScalePercent = pct.Value; });
 
             AddTextOverlayCommand = new RelayCommand(AddTextOverlay);
             AddShapeOverlayCommand = new RelayCommand<ShapeType?>(shape => AddShapeOverlay(shape ?? ShapeType.Rectangle));
