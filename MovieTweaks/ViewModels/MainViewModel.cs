@@ -19,10 +19,10 @@ namespace MovieTweaks.ViewModels
         private readonly FFmpegService _ffmpegService;
         private readonly DispatcherTimer _playbackTimer;
         private readonly UndoRedoService _undoRedo = new();
+        private DateTime _lastPlaybackTick;
 
         private Project _project = new();
         private double _currentTimeSeconds;
-        private bool _isSyncingFromPlayer;
         private bool _isPlaying;
         private bool _isExporting;
         private double _exportProgress;
@@ -36,7 +36,16 @@ namespace MovieTweaks.ViewModels
         public Project Project
         {
             get => _project;
-            set => SetProperty(ref _project, value);
+            set
+            {
+                if (SetProperty(ref _project, value))
+                {
+                    SetupCollectionListeners(_project);
+                    OnPropertyChanged(nameof(TotalDurationSeconds));
+                    OnPropertyChanged(nameof(FormattedTotalTime));
+                    OnPropertyChanged(nameof(CurrentTimeDisplay));
+                }
+            }
         }
 
         public double CurrentTimeSeconds
@@ -44,49 +53,14 @@ namespace MovieTweaks.ViewModels
             get => _currentTimeSeconds;
             set
             {
-                if (SetProperty(ref _currentTimeSeconds, Math.Max(0, value)))
+                double clamped = Math.Max(0, value);
+                if (Math.Abs(_currentTimeSeconds - clamped) > 0.001)
                 {
+                    _currentTimeSeconds = clamped;
+                    OnPropertyChanged();
                     OnPropertyChanged(nameof(FormattedCurrentTime));
                     OnPropertyChanged(nameof(CurrentTimeDisplay));
-                    if (!_isSyncingFromPlayer)
-                    {
-                        RequestMediaSeek?.Invoke(_currentTimeSeconds);
-                    }
-                }
-            }
-        }
-
-        public void SyncCurrentTimeFromPlayer(double seconds)
-        {
-            _isSyncingFromPlayer = true;
-            CurrentTimeSeconds = seconds;
-            _isSyncingFromPlayer = false;
-
-            if (IsPlaying)
-            {
-                CheckAndSkipCutRanges(seconds);
-            }
-        }
-
-        private void CheckAndSkipCutRanges(double seconds)
-        {
-            if (Project.CutRanges.Count == 0) return;
-
-            var validRanges = Project.CutRanges.Where(r => r.IsKeep && r.Duration > 0.05).OrderBy(r => r.StartSeconds).ToList();
-            if (validRanges.Count == 0) return;
-
-            bool isInside = validRanges.Any(r => seconds >= r.StartSeconds && seconds < r.EndSeconds);
-            if (!isInside)
-            {
-                var nextRange = validRanges.FirstOrDefault(r => r.StartSeconds > seconds);
-                if (nextRange != null)
-                {
-                    SeekTo(nextRange.StartSeconds);
-                }
-                else
-                {
-                    Pause();
-                    CurrentTimeSeconds = validRanges.Last().EndSeconds;
+                    RequestMediaSeek?.Invoke(_currentTimeSeconds);
                 }
             }
         }
@@ -105,6 +79,7 @@ namespace MovieTweaks.ViewModels
                 OnPropertyChanged(nameof(FormattedTotalTime));
                 OnPropertyChanged(nameof(CurrentTimeDisplay));
                 SelectedItem = Project.Overlays.LastOrDefault() ?? (object?)Project.SourceVideo;
+                RequestMediaSeek?.Invoke(CurrentTimeSeconds);
             }
         }
 
@@ -117,10 +92,32 @@ namespace MovieTweaks.ViewModels
                 OnPropertyChanged(nameof(FormattedTotalTime));
                 OnPropertyChanged(nameof(CurrentTimeDisplay));
                 SelectedItem = Project.Overlays.LastOrDefault() ?? (object?)Project.SourceVideo;
+                RequestMediaSeek?.Invoke(CurrentTimeSeconds);
             }
         }
 
-        public double TotalDurationSeconds => Project.SourceVideo?.DurationSeconds ?? 0;
+        public double TotalDurationSeconds
+        {
+            get
+            {
+                double maxTime = Project.SourceVideo?.DurationSeconds ?? 0;
+                if (Project.CutRanges != null)
+                {
+                    foreach (var r in Project.CutRanges)
+                    {
+                        if (r.EndSeconds > maxTime) maxTime = r.EndSeconds;
+                    }
+                }
+                if (Project.Overlays != null)
+                {
+                    foreach (var o in Project.Overlays)
+                    {
+                        if (o.EndTime > maxTime) maxTime = o.EndTime;
+                    }
+                }
+                return Math.Max(maxTime, 5.0);
+            }
+        }
 
         public string FormattedCurrentTime => FormatTime(CurrentTimeSeconds);
         public string FormattedTotalTime => FormatTime(TotalDurationSeconds);
@@ -134,8 +131,15 @@ namespace MovieTweaks.ViewModels
                 if (SetProperty(ref _isPlaying, value))
                 {
                     OnPropertyChanged(nameof(PlayPauseButtonText));
-                    if (value) _playbackTimer.Start();
-                    else _playbackTimer.Stop();
+                    if (value)
+                    {
+                        _lastPlaybackTick = DateTime.UtcNow;
+                        _playbackTimer.Start();
+                    }
+                    else
+                    {
+                        _playbackTimer.Stop();
+                    }
                 }
             }
         }
@@ -252,19 +256,33 @@ namespace MovieTweaks.ViewModels
 
             _playbackTimer = new DispatcherTimer(DispatcherPriority.Render)
             {
-                Interval = TimeSpan.FromMilliseconds(33) // ~30 FPS UI tick
+                Interval = TimeSpan.FromMilliseconds(30)
             };
             _playbackTimer.Tick += (s, e) =>
             {
-                if (IsPlaying && TotalDurationSeconds > 0)
+                if (IsPlaying)
                 {
-                    if (CurrentTimeSeconds >= TotalDurationSeconds)
+                    var now = DateTime.UtcNow;
+                    double dt = (now - _lastPlaybackTick).TotalSeconds;
+                    _lastPlaybackTick = now;
+
+                    if (TotalDurationSeconds > 0)
                     {
-                        Pause();
-                        CurrentTimeSeconds = TotalDurationSeconds;
+                        double next = CurrentTimeSeconds + dt;
+                        if (next >= TotalDurationSeconds)
+                        {
+                            Pause();
+                            CurrentTimeSeconds = TotalDurationSeconds;
+                        }
+                        else
+                        {
+                            CurrentTimeSeconds = next;
+                        }
                     }
                 }
             };
+
+            SetupCollectionListeners(Project);
 
             OpenVideoCommand = new RelayCommand(async () => await OpenVideoDialogAsync());
             PlayPauseCommand = new RelayCommand(TogglePlayPause);
@@ -389,6 +407,47 @@ namespace MovieTweaks.ViewModels
             SeekTo(CurrentTimeSeconds + step);
         }
 
+        private void SetupCollectionListeners(Project project)
+        {
+            project.CutRanges.CollectionChanged += (s, e) =>
+            {
+                if (e.NewItems != null)
+                {
+                    foreach (CutRange r in e.NewItems)
+                    {
+                        r.PropertyChanged += (sender, args) =>
+                        {
+                            OnPropertyChanged(nameof(TotalDurationSeconds));
+                            OnPropertyChanged(nameof(FormattedTotalTime));
+                            OnPropertyChanged(nameof(CurrentTimeDisplay));
+                        };
+                    }
+                }
+                OnPropertyChanged(nameof(TotalDurationSeconds));
+                OnPropertyChanged(nameof(FormattedTotalTime));
+                OnPropertyChanged(nameof(CurrentTimeDisplay));
+            };
+
+            project.Overlays.CollectionChanged += (s, e) =>
+            {
+                if (e.NewItems != null)
+                {
+                    foreach (OverlayItem o in e.NewItems)
+                    {
+                        o.PropertyChanged += (sender, args) =>
+                        {
+                            OnPropertyChanged(nameof(TotalDurationSeconds));
+                            OnPropertyChanged(nameof(FormattedTotalTime));
+                            OnPropertyChanged(nameof(CurrentTimeDisplay));
+                        };
+                    }
+                }
+                OnPropertyChanged(nameof(TotalDurationSeconds));
+                OnPropertyChanged(nameof(FormattedTotalTime));
+                OnPropertyChanged(nameof(CurrentTimeDisplay));
+            };
+        }
+
         public void SetInPoint()
         {
             if (Project.CutRanges.Count == 0) return;
@@ -396,6 +455,8 @@ namespace MovieTweaks.ViewModels
             if (currentRange != null)
             {
                 RecordHistory();
+                double delta = CurrentTimeSeconds - currentRange.StartSeconds;
+                currentRange.SourceStartSeconds = Math.Max(0, currentRange.SourceStartSeconds + delta);
                 currentRange.StartSeconds = CurrentTimeSeconds;
                 StatusMessage = $"イン点(開始位置)を設定: {FormatTime(CurrentTimeSeconds)}";
             }
@@ -421,11 +482,17 @@ namespace MovieTweaks.ViewModels
             {
                 RecordHistory();
                 double oldEnd = target.EndSeconds;
+                double splitOffset = CurrentTimeSeconds - target.StartSeconds;
                 target.EndSeconds = CurrentTimeSeconds;
 
-                var newRange = new CutRange(CurrentTimeSeconds, oldEnd, true);
+                var newRange = new CutRange(CurrentTimeSeconds, oldEnd, target.SourceStartSeconds + splitOffset, true)
+                {
+                    Volume = target.Volume,
+                    PlaybackSpeed = target.PlaybackSpeed
+                };
                 int idx = Project.CutRanges.IndexOf(target);
                 Project.CutRanges.Insert(idx + 1, newRange);
+                SelectedItem = newRange;
                 StatusMessage = $"タイムラインを分割しました: {FormatTime(CurrentTimeSeconds)}";
             }
         }
@@ -436,7 +503,7 @@ namespace MovieTweaks.ViewModels
             {
                 RecordHistory();
                 Project.CutRanges.Clear();
-                Project.CutRanges.Add(new CutRange(0, Project.SourceVideo.DurationSeconds, true));
+                Project.CutRanges.Add(new CutRange(0, Project.SourceVideo.DurationSeconds, 0, true));
                 StatusMessage = "カット範囲をリセットしました。";
             }
         }
@@ -554,12 +621,13 @@ namespace MovieTweaks.ViewModels
                 SelectedItem = Project.SourceVideo;
                 StatusMessage = "アイテムを削除しました。";
             }
-            else if (SelectedItem is CutRange cr && Project.CutRanges.Count > 1)
+            else if (SelectedItem is CutRange cr)
             {
                 RecordHistory();
                 Project.CutRanges.Remove(cr);
                 SelectedItem = Project.CutRanges.FirstOrDefault() ?? (object?)Project.SourceVideo;
-                StatusMessage = "カット区間を削除しました。";
+                StatusMessage = "カット区間を削除しました（無映像・無音区間になります）。";
+                RequestMediaSeek?.Invoke(CurrentTimeSeconds);
             }
         }
 

@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Threading.Tasks;
 using MovieTweaks.Models;
 using MovieTweaks.Services;
@@ -150,6 +150,63 @@ namespace MovieTweaks.Tests
             Assert.True(redone);
             Assert.Single(project.Overlays);
             Assert.Equal("First Item", ((TextOverlay)project.Overlays[0]).Text);
+        }
+
+        [Fact]
+        public void CutRange_SourceStartSeconds_CalculatesAndClonesCorrectly()
+        {
+            var cr = new CutRange(10.0, 25.0, 5.0, true)
+            {
+                Volume = 0.8,
+                PlaybackSpeed = 1.5
+            };
+
+            Assert.Equal(15.0, cr.Duration);
+            Assert.Equal(5.0, cr.SourceStartSeconds);
+            Assert.Equal(0.8, cr.Volume);
+            Assert.Equal(1.5, cr.PlaybackSpeed);
+
+            var cloned = cr.Clone();
+            Assert.Equal(cr.StartSeconds, cloned.StartSeconds);
+            Assert.Equal(cr.EndSeconds, cloned.EndSeconds);
+            Assert.Equal(cr.SourceStartSeconds, cloned.SourceStartSeconds);
+            Assert.Equal(cr.Volume, cloned.Volume);
+            Assert.Equal(cr.PlaybackSpeed, cloned.PlaybackSpeed);
+        }
+
+        [Fact]
+        public void MainViewModel_SplitCutAtCurrentTime_MaintainsAccurateSourceOffsets()
+        {
+            var vm = new MainViewModel();
+            vm.Project.SourceVideo = new VideoClip { DurationSeconds = 100 };
+            vm.Project.CutRanges.Clear();
+            vm.Project.CutRanges.Add(new CutRange(0, 100, 0, true));
+
+            // Split at t = 30
+            vm.CurrentTimeSeconds = 30;
+            vm.SplitCutAtCurrentTime();
+
+            Assert.Equal(2, vm.Project.CutRanges.Count);
+            Assert.Equal(0, vm.Project.CutRanges[0].StartSeconds);
+            Assert.Equal(30, vm.Project.CutRanges[0].EndSeconds);
+            Assert.Equal(0, vm.Project.CutRanges[0].SourceStartSeconds);
+
+            Assert.Equal(30, vm.Project.CutRanges[1].StartSeconds);
+            Assert.Equal(100, vm.Project.CutRanges[1].EndSeconds);
+            Assert.Equal(30, vm.Project.CutRanges[1].SourceStartSeconds);
+
+            // Split 2nd clip at t = 50
+            vm.CurrentTimeSeconds = 50;
+            vm.SplitCutAtCurrentTime();
+
+            Assert.Equal(3, vm.Project.CutRanges.Count);
+            Assert.Equal(30, vm.Project.CutRanges[1].StartSeconds);
+            Assert.Equal(50, vm.Project.CutRanges[1].EndSeconds);
+            Assert.Equal(30, vm.Project.CutRanges[1].SourceStartSeconds);
+
+            Assert.Equal(50, vm.Project.CutRanges[2].StartSeconds);
+            Assert.Equal(100, vm.Project.CutRanges[2].EndSeconds);
+            Assert.Equal(50, vm.Project.CutRanges[2].SourceStartSeconds);
         }
     }
 }

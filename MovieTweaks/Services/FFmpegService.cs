@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -214,7 +214,7 @@ namespace MovieTweaks.Services
             if (keepRanges.Count == 1)
             {
                 var r = keepRanges[0];
-                var args = $"-y -ss {r.StartSeconds.ToString("F3", CultureInfo.InvariantCulture)} -to {r.EndSeconds.ToString("F3", CultureInfo.InvariantCulture)} -i \"{inputFile}\" -c copy -avoid_negative_ts make_zero \"{outputFile}\"";
+                var args = $"-y -ss {r.SourceStartSeconds.ToString("F3", CultureInfo.InvariantCulture)} -t {r.Duration.ToString("F3", CultureInfo.InvariantCulture)} -i \"{inputFile}\" -c copy -avoid_negative_ts make_zero \"{outputFile}\"";
                 await RunFFmpegCommandAsync(ffmpeg, args, r.Duration, progress, cancellationToken);
             }
             else
@@ -235,7 +235,7 @@ namespace MovieTweaks.Services
                         tempFiles.Add(segmentOut);
                         concatLines.AppendLine($"file '{segmentOut.Replace("\\", "/")}'");
 
-                        var args = $"-y -ss {r.StartSeconds.ToString("F3", CultureInfo.InvariantCulture)} -to {r.EndSeconds.ToString("F3", CultureInfo.InvariantCulture)} -i \"{inputFile}\" -c copy -avoid_negative_ts make_zero \"{segmentOut}\"";
+                        var args = $"-y -ss {r.SourceStartSeconds.ToString("F3", CultureInfo.InvariantCulture)} -t {r.Duration.ToString("F3", CultureInfo.InvariantCulture)} -i \"{inputFile}\" -c copy -avoid_negative_ts make_zero \"{segmentOut}\"";
 
                         var segmentProgress = new Progress<double>(p =>
                         {
@@ -277,7 +277,12 @@ namespace MovieTweaks.Services
         {
             var ffmpeg = GetFFmpegPath() ?? throw new InvalidOperationException("FFmpeg not found.");
             var keepRanges = ranges.Where(r => r.IsKeep && r.Duration > 0.01).OrderBy(r => r.StartSeconds).ToList();
-            var totalDuration = keepRanges.Count > 0 ? keepRanges.Sum(x => x.Duration) : 10.0;
+            double totalDuration = keepRanges.Count > 0 ? keepRanges.Max(r => r.EndSeconds) : 0;
+            if (overlays.Count > 0)
+            {
+                totalDuration = Math.Max(totalDuration, overlays.Max(o => o.EndTime));
+            }
+            totalDuration = Math.Max(totalDuration, 1.0);
 
             var tempFiles = new List<string>();
 
@@ -299,36 +304,59 @@ namespace MovieTweaks.Services
                     overlayInputs.Append($"-i \"{pngPath}\" ");
                 }
 
-                // Filter complex setup
+                // 2. Build timeline segments (clips + gaps)
+                var segments = new List<(bool isGap, CutRange? clip, double duration)>();
+                double curT = 0.0;
+                foreach (var r in keepRanges)
+                {
+                    if (r.StartSeconds > curT + 0.05)
+                    {
+                        segments.Add((true, null, r.StartSeconds - curT));
+                    }
+                    segments.Add((false, r, r.Duration));
+                    curT = r.EndSeconds;
+                }
+                if (curT < totalDuration - 0.05)
+                {
+                    segments.Add((true, null, totalDuration - curT));
+                }
+
                 string currentVideoTag = "[0:v]";
 
-                // If cut ranges exist, apply trim or select
-                if (keepRanges.Count > 0)
+                if (segments.Count == 0)
                 {
-                    // Single range trim
-                    if (keepRanges.Count == 1)
+                    filterComplex.Append($"color=c=black:s={videoWidth}x{videoHeight}:r=30:d={totalDuration.ToString("F3", CultureInfo.InvariantCulture)}[vcut];");
+                    filterComplex.Append($"anullsrc=r=48000:cl=stereo:d={totalDuration.ToString("F3", CultureInfo.InvariantCulture)}[acut];");
+                    currentVideoTag = "[vcut]";
+                }
+                else if (segments.Count == 1 && !segments[0].isGap && segments[0].clip!.StartSeconds < 0.05)
+                {
+                    var r = segments[0].clip!;
+                    filterComplex.Append($"[0:v]trim=start={r.SourceStartSeconds.ToString("F3", CultureInfo.InvariantCulture)}:duration={r.Duration.ToString("F3", CultureInfo.InvariantCulture)},setpts=PTS-STARTPTS[vcut];");
+                    filterComplex.Append($"[0:a]atrim=start={r.SourceStartSeconds.ToString("F3", CultureInfo.InvariantCulture)}:duration={r.Duration.ToString("F3", CultureInfo.InvariantCulture)},asetpts=PTS-STARTPTS[acut];");
+                    currentVideoTag = "[vcut]";
+                }
+                else
+                {
+                    var concatInputs = new StringBuilder();
+                    for (int k = 0; k < segments.Count; k++)
                     {
-                        var r = keepRanges[0];
-                        filterComplex.Append($"[0:v]trim=start={r.StartSeconds.ToString("F3", CultureInfo.InvariantCulture)}:end={r.EndSeconds.ToString("F3", CultureInfo.InvariantCulture)},setpts=PTS-STARTPTS[vcut];");
-                        filterComplex.Append($"[0:a]atrim=start={r.StartSeconds.ToString("F3", CultureInfo.InvariantCulture)}:end={r.EndSeconds.ToString("F3", CultureInfo.InvariantCulture)},asetpts=PTS-STARTPTS[acut];");
-                        currentVideoTag = "[vcut]";
-                    }
-                    else
-                    {
-                        // Multi range concat
-                        var vTags = new StringBuilder();
-                        var aTags = new StringBuilder();
-                        for (int k = 0; k < keepRanges.Count; k++)
+                        var seg = segments[k];
+                        if (seg.isGap)
                         {
-                            var r = keepRanges[k];
-                            filterComplex.Append($"[0:v]trim=start={r.StartSeconds.ToString("F3", CultureInfo.InvariantCulture)}:end={r.EndSeconds.ToString("F3", CultureInfo.InvariantCulture)},setpts=PTS-STARTPTS[v{k}];");
-                            filterComplex.Append($"[0:a]atrim=start={r.StartSeconds.ToString("F3", CultureInfo.InvariantCulture)}:end={r.EndSeconds.ToString("F3", CultureInfo.InvariantCulture)},asetpts=PTS-STARTPTS[a{k}];");
-                            vTags.Append($"[v{k}]");
-                            aTags.Append($"[a{k}]");
+                            filterComplex.Append($"color=c=black:s={videoWidth}x{videoHeight}:r=30:d={seg.duration.ToString("F3", CultureInfo.InvariantCulture)}[v{k}];");
+                            filterComplex.Append($"anullsrc=r=48000:cl=stereo:d={seg.duration.ToString("F3", CultureInfo.InvariantCulture)}[a{k}];");
                         }
-                        filterComplex.Append($"{vTags}{aTags}concat=n={keepRanges.Count}:v=1:a=1[vcut][acut];");
-                        currentVideoTag = "[vcut]";
+                        else
+                        {
+                            var r = seg.clip!;
+                            filterComplex.Append($"[0:v]trim=start={r.SourceStartSeconds.ToString("F3", CultureInfo.InvariantCulture)}:duration={r.Duration.ToString("F3", CultureInfo.InvariantCulture)},setpts=PTS-STARTPTS[v{k}];");
+                            filterComplex.Append($"[0:a]atrim=start={r.SourceStartSeconds.ToString("F3", CultureInfo.InvariantCulture)}:duration={r.Duration.ToString("F3", CultureInfo.InvariantCulture)},asetpts=PTS-STARTPTS[a{k}];");
+                        }
+                        concatInputs.Append($"[v{k}][a{k}]");
                     }
+                    filterComplex.Append($"{concatInputs}concat=n={segments.Count}:v=1:a=1[vcut][acut];");
+                    currentVideoTag = "[vcut]";
                 }
 
                 // Apply overlays sequentially
@@ -348,16 +376,10 @@ namespace MovieTweaks.Services
                     currentVideoTag = nextTag;
                 }
 
-                if (activeOverlays.Count == 0 && keepRanges.Count == 0)
-                {
-                    // Nothing to filter
-                    filterComplex.Clear();
-                }
-
                 var filterStr = filterComplex.ToString().TrimEnd(';');
                 var encoder = DetectBestEncoder();
-                var audioMap = (keepRanges.Count > 0) ? "-map \"[acut]\"" : "-map 0:a?";
-                var videoMap = (activeOverlays.Count > 0 || keepRanges.Count > 0) ? $"-map \"{(activeOverlays.Count > 0 ? "[vout]" : "[vcut]")}\"" : "-map 0:v";
+                var audioMap = "-map \"[acut]\"";
+                var videoMap = (activeOverlays.Count > 0) ? "-map \"[vout]\"" : $"-map \"{currentVideoTag}\"";
 
                 string args;
                 if (!string.IsNullOrEmpty(filterStr))

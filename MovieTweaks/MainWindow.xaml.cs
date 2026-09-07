@@ -10,10 +10,8 @@ namespace MovieTweaks
     public partial class MainWindow : Window
     {
         private readonly MainViewModel _vm;
-        private readonly DispatcherTimer _syncTimer;
         private readonly DispatcherTimer _scrubDebounceTimer;
         private double _pendingSeekSeconds = -1;
-        private bool _isSeekingByCode;
 
         public MainWindow()
         {
@@ -31,10 +29,8 @@ namespace MovieTweaks
                 _scrubDebounceTimer.Stop();
                 if (_pendingSeekSeconds >= 0 && Player.Source != null)
                 {
-                    _isSeekingByCode = true;
                     Player.Position = TimeSpan.FromSeconds(_pendingSeekSeconds);
                     _pendingSeekSeconds = -1;
-                    _isSeekingByCode = false;
                 }
             };
 
@@ -60,20 +56,13 @@ namespace MovieTweaks
             {
                 if (Player.Source != null)
                 {
-                    Player.IsMuted = false;
-                    var clip = _vm.SelectedVideoClip ?? _vm.Project.SourceVideo;
-                    if (clip != null)
-                    {
-                        Player.Volume = clip.Volume;
-                        Player.SpeedRatio = clip.PlaybackSpeed;
-                    }
-                    Player.Play();
+                    _vm.RequestMediaSeek?.Invoke(_vm.CurrentTimeSeconds);
                 }
             };
 
             _vm.RequestMediaPause = () =>
             {
-                if (Player.Source != null)
+                if (Player.Source != null && Player.CanPause)
                 {
                     Player.Pause();
                 }
@@ -83,30 +72,53 @@ namespace MovieTweaks
             {
                 if (Player.Source == null) return;
 
-                // Mute during scrubbing to completely eliminate pop/click noises
-                if (!_vm.IsPlaying)
+                var activeClip = _vm.Project.CutRanges.FirstOrDefault(r => r.IsKeep && seconds >= r.StartSeconds && seconds < r.EndSeconds);
+                if (activeClip != null)
                 {
+                    if (Player.Visibility != Visibility.Visible)
+                    {
+                        Player.Visibility = Visibility.Visible;
+                    }
+
+                    double sourceTime = activeClip.SourceStartSeconds + (seconds - activeClip.StartSeconds) * activeClip.PlaybackSpeed;
+                    Player.Volume = activeClip.Volume;
+                    Player.SpeedRatio = activeClip.PlaybackSpeed;
+
+                    if (_vm.IsPlaying)
+                    {
+                        Player.IsMuted = false;
+                        if (Math.Abs(Player.Position.TotalSeconds - sourceTime) > 0.25)
+                        {
+                            Player.Position = TimeSpan.FromSeconds(sourceTime);
+                        }
+                        Player.Play();
+                    }
+                    else
+                    {
+                        Player.IsMuted = true;
+                        _pendingSeekSeconds = sourceTime;
+
+                        if (!_scrubDebounceTimer.IsEnabled)
+                        {
+                            Player.Position = TimeSpan.FromSeconds(sourceTime);
+                            _scrubDebounceTimer.Start();
+                        }
+                    }
+                }
+                else
+                {
+                    // Gap: Blank video (black canvas) and silence (muted)
+                    if (Player.Visibility != Visibility.Hidden)
+                    {
+                        Player.Visibility = Visibility.Hidden;
+                    }
                     Player.IsMuted = true;
-                }
-
-                _pendingSeekSeconds = seconds;
-
-                if (!_scrubDebounceTimer.IsEnabled)
-                {
-                    _isSeekingByCode = true;
-                    Player.Position = TimeSpan.FromSeconds(seconds);
-                    _isSeekingByCode = false;
-                    _scrubDebounceTimer.Start();
+                    if (Player.CanPause)
+                    {
+                        Player.Pause();
+                    }
                 }
             };
-
-            // High-frequency sync timer for video playback position
-            _syncTimer = new DispatcherTimer(DispatcherPriority.Render)
-            {
-                Interval = TimeSpan.FromMilliseconds(30)
-            };
-            _syncTimer.Tick += SyncTimer_Tick;
-            _syncTimer.Start();
 
             // YMM4-style: Clicking on video canvas empty area selects video clip
             OverlayCanvasControl.CanvasEmptyClicked += (s, e) =>
@@ -116,14 +128,6 @@ namespace MovieTweaks
                     _vm.SelectedItem = _vm.Project.SourceVideo;
                 }
             };
-        }
-
-        private void SyncTimer_Tick(object? sender, EventArgs e)
-        {
-            if (_vm.IsPlaying && !_isSeekingByCode && Player.NaturalDuration.HasTimeSpan)
-            {
-                _vm.SyncCurrentTimeFromPlayer(Player.Position.TotalSeconds);
-            }
         }
 
         private void Player_MediaOpened(object sender, RoutedEventArgs e)

@@ -83,6 +83,7 @@ namespace MovieTweaks.Controls
         private Point _dragStartPos;
         private double _dragStartStartTime;
         private double _dragStartEndTime;
+        private double _dragStartSourceStart;
 
         private readonly System.Windows.Threading.DispatcherTimer _scrubThrottler;
         private double _pendingScrubTime = -1;
@@ -294,8 +295,24 @@ namespace MovieTweaks.Controls
                         BorderBrush = isSel ? Brushes.White : new SolidColorBrush(Color.FromArgb(180, 50, 205, 120)),
                         BorderThickness = new Thickness(isSel ? 2 : 1),
                         CornerRadius = new CornerRadius(3),
-                        Cursor = Cursors.Hand,
-                        ToolTip = $"動画クリップ [{r.StartSeconds:F1}s - {r.EndSeconds:F1}s] (クリックで選択・端をドラッグでトリミング)"
+                        Cursor = Cursors.SizeAll,
+                        ToolTip = $"動画クリップ [{r.StartSeconds:F1}s - {r.EndSeconds:F1}s (元動画: {r.SourceStartSeconds:F1}s~)] (中央ドラッグで移動・端ドラッグでトリミング)"
+                    };
+
+                    clipBorder.MouseMove += (s, e) =>
+                    {
+                        if (_barDragMode == BarDragMode.None)
+                        {
+                            var localX = e.GetPosition(clipBorder).X;
+                            if (localX < 8 || localX > clipBorder.ActualWidth - 8)
+                            {
+                                clipBorder.Cursor = Cursors.SizeWE;
+                            }
+                            else
+                            {
+                                clipBorder.Cursor = Cursors.SizeAll;
+                            }
+                        }
                     };
 
                     var clipContent = new Grid();
@@ -314,7 +331,7 @@ namespace MovieTweaks.Controls
                     Canvas.SetLeft(clipBorder, x1);
                     Canvas.SetTop(clipBorder, 4);
 
-                    // Click to select clip and handle edge trimming
+                    // Click to select clip and handle dragging / edge trimming
                     clipBorder.MouseDown += (s, e) =>
                     {
                         if (e.ChangedButton == MouseButton.Left)
@@ -324,6 +341,7 @@ namespace MovieTweaks.Controls
                             _dragStartPos = e.GetPosition(VideoTrackCanvas);
                             _dragStartStartTime = r.StartSeconds;
                             _dragStartEndTime = r.EndSeconds;
+                            _dragStartSourceStart = r.SourceStartSeconds;
 
                             var localX = e.GetPosition(clipBorder).X;
                             if (localX < 8)
@@ -338,8 +356,8 @@ namespace MovieTweaks.Controls
                             }
                             else
                             {
-                                _barDragMode = BarDragMode.None;
-                                SeekToMouse(e.GetPosition(VideoTrackCanvas).X);
+                                _barDragMode = BarDragMode.Slide;
+                                clipBorder.Cursor = Cursors.SizeAll;
                             }
 
                             VideoTrackCanvas.CaptureMouse();
@@ -506,13 +524,24 @@ namespace MovieTweaks.Controls
 
                 if (_barDragMode == BarDragMode.TrimLeft)
                 {
-                    _draggingCutRange.StartSeconds = Math.Clamp(_dragStartStartTime + deltaSec, 0, _draggingCutRange.EndSeconds - 0.2);
+                    double newStart = Math.Clamp(_dragStartStartTime + deltaSec, 0, _draggingCutRange.EndSeconds - 0.2);
+                    double actualDelta = newStart - _dragStartStartTime;
+                    _draggingCutRange.StartSeconds = newStart;
+                    _draggingCutRange.SourceStartSeconds = Math.Max(0, _dragStartSourceStart + actualDelta);
                     CurrentTime = _draggingCutRange.StartSeconds;
                 }
                 else if (_barDragMode == BarDragMode.TrimRight)
                 {
-                    _draggingCutRange.EndSeconds = Math.Clamp(_dragStartEndTime + deltaSec, _draggingCutRange.StartSeconds + 0.2, Duration);
+                    _draggingCutRange.EndSeconds = Math.Max(_draggingCutRange.StartSeconds + 0.2, _dragStartEndTime + deltaSec);
                     CurrentTime = _draggingCutRange.EndSeconds;
+                }
+                else if (_barDragMode == BarDragMode.Slide)
+                {
+                    double dur = _dragStartEndTime - _dragStartStartTime;
+                    double newStart = Math.Max(0, _dragStartStartTime + deltaSec);
+                    _draggingCutRange.StartSeconds = newStart;
+                    _draggingCutRange.EndSeconds = newStart + dur;
+                    CurrentTime = newStart;
                 }
                 RedrawVideoTrack();
             }
@@ -525,6 +554,7 @@ namespace MovieTweaks.Controls
                 _draggingCutRange = null;
                 _barDragMode = BarDragMode.None;
                 VideoTrackCanvas.ReleaseMouseCapture();
+                RedrawAll();
             }
         }
 
