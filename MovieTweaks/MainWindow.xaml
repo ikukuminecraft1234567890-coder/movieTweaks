@@ -190,7 +190,7 @@
                     <controls:OverlayCanvas x:Name="OverlayCanvasControl"
                                             Overlays="{Binding Project.Overlays}"
                                             CurrentTime="{Binding CurrentTimeSeconds}"
-                                            SelectedItem="{Binding SelectedOverlay, Mode=TwoWay}"
+                                            SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
                                             VideoWidth="{Binding Project.SourceVideo.Width}"
                                             VideoHeight="{Binding Project.SourceVideo.Height}"
                                             HorizontalAlignment="Center"
@@ -205,11 +205,88 @@
                         <TextBlock Text="プロパティ" FontSize="14" FontWeight="Bold" Foreground="#FFFFFF" Margin="0,0,0,12"/>
 
                         <!-- If No Selection -->
-                        <TextBlock Text="アイテムを選択するとプロパティを編集できます。"
+                        <TextBlock Text="タイムライン上のクリップや動画画面をクリックすると、プロパティを編集できます。"
                                    Foreground="#777777" TextWrapping="Wrap"
-                                   Visibility="{Binding HasSelectedOverlay, Converter={x:Static controls:InverseBooleanToVisibilityConverter.Instance}}"/>
+                                   Visibility="{Binding HasSelection, Converter={x:Static controls:InverseBooleanToVisibilityConverter.Instance}}"/>
 
-                        <!-- Inspector Form for Selected Item -->
+                        <!-- VIDEO CLIP PROPERTY PANEL (YMM4-style) -->
+                        <StackPanel Visibility="{Binding IsVideoSelected, Converter={x:Static controls:BooleanToVisibilityConverter.Instance}}">
+                            <Border Background="#107C41" CornerRadius="4" Padding="6,3" Margin="0,0,0,10" HorizontalAlignment="Left">
+                                <TextBlock Text="🎬 動画クリップ" FontWeight="Bold" Foreground="White" FontSize="12"/>
+                            </Border>
+
+                            <TextBlock Text="ファイル名" Foreground="#AAAAAA" FontSize="11"/>
+                            <TextBlock Text="{Binding SelectedVideoClip.FileName}" Foreground="#F1F1F1" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
+
+                            <TextBlock Text="{Binding SelectedVideoClip.FilePath}" Foreground="#777777" FontSize="10" TextTrimming="CharacterEllipsis" Margin="0,0,0,8"/>
+
+                            <Grid Margin="0,2,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="解像度" Foreground="#AAAAAA" FontSize="11"/>
+                                    <TextBlock Foreground="#CCCCCC">
+                                        <TextBlock.Text>
+                                            <MultiBinding StringFormat="{}{0} x {1}">
+                                                <Binding Path="SelectedVideoClip.Width"/>
+                                                <Binding Path="SelectedVideoClip.Height"/>
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="フレームレート" Foreground="#AAAAAA" FontSize="11"/>
+                                    <TextBlock Text="{Binding SelectedVideoClip.Fps, StringFormat='{}{0:F1} fps'}" Foreground="#CCCCCC"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Separator Margin="0,10" Background="#333333"/>
+
+                            <!-- Volume Control -->
+                            <TextBlock Text="{Binding SelectedVideoClip.Volume, StringFormat='音量: {0:P0}'}" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,2"/>
+                            <Slider Minimum="0" Maximum="1" Value="{Binding SelectedVideoClip.Volume}" SmallChange="0.05" LargeChange="0.1"/>
+
+                            <!-- Playback Speed Control -->
+                            <TextBlock Text="{Binding SelectedVideoClip.PlaybackSpeed, StringFormat='再生速度: {0:F2}x'}" Foreground="#AAAAAA" FontSize="11" Margin="0,8,0,2"/>
+                            <Slider Minimum="0.25" Maximum="2.0" Value="{Binding SelectedVideoClip.PlaybackSpeed}" SmallChange="0.25" LargeChange="0.5"/>
+
+                            <Separator Margin="0,10" Background="#333333"/>
+
+                            <!-- Cut/Trim info -->
+                            <TextBlock Text="カット・トリミング" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4"/>
+                            <Grid Margin="0,4,0,0" Visibility="{Binding IsCutRangeSelected, Converter={x:Static controls:BooleanToVisibilityConverter.Instance}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                                    <TextBlock Text="開始秒 (In)" Foreground="#AAAAAA" FontSize="11"/>
+                                    <TextBox Text="{Binding SelectedCutRange.StartSeconds, StringFormat='{}{0:F2}', UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                                    <TextBlock Text="終了秒 (Out)" Foreground="#AAAAAA" FontSize="11"/>
+                                    <TextBox Text="{Binding SelectedCutRange.EndSeconds, StringFormat='{}{0:F2}', UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button Content="[I] ここをイン点" Command="{Binding SetInPointCommand}" FontSize="11" Padding="6,3"/>
+                                <Button Content="[O] ここをアウト点" Command="{Binding SetOutPointCommand}" FontSize="11" Padding="6,3" Margin="4,0,0,0"/>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                <Button Content="✂ ここで分割 (S)" Command="{Binding SplitCutCommand}" FontSize="11" Padding="6,3"/>
+                                <Button Content="リセット" Command="{Binding ResetCutCommand}" FontSize="11" Padding="6,3" Margin="4,0,0,0"/>
+                            </StackPanel>
+
+                            <Button Content="このカット区間を削除" Command="{Binding DeleteSelectedCommand}"
+                                    Visibility="{Binding IsCutRangeSelected, Converter={x:Static controls:BooleanToVisibilityConverter.Instance}}"
+                                    Background="#782020" Margin="0,10,0,0" FontSize="11"/>
+                        </StackPanel>
+
+                        <!-- OVERLAY ITEM PROPERTY PANEL -->
                         <StackPanel Visibility="{Binding HasSelectedOverlay, Converter={x:Static controls:BooleanToVisibilityConverter.Instance}}">
                             <!-- Name & Timing -->
                             <TextBlock Text="アイテム名" Foreground="#AAAAAA" FontSize="11" Margin="0,4,0,2"/>
@@ -297,7 +374,7 @@
                             <!-- Item Operations -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                 <Button Content="複製" Command="{Binding DuplicateSelectedOverlayCommand}" Width="70"/>
-                                <Button Content="削除" Command="{Binding DeleteSelectedOverlayCommand}" Background="#782020" Width="70" Margin="6,0,0,0"/>
+                                <Button Content="削除" Command="{Binding DeleteSelectedCommand}" Background="#782020" Width="70" Margin="6,0,0,0"/>
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>
@@ -341,7 +418,7 @@
                                   CurrentTime="{Binding CurrentTimeSeconds, Mode=TwoWay}"
                                   CutRanges="{Binding Project.CutRanges}"
                                   Overlays="{Binding Project.Overlays}"
-                                  SelectedItem="{Binding SelectedOverlay, Mode=TwoWay}"
+                                  SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
                                   Zoom="{Binding TimelineZoom, Mode=TwoWay}"/>
 
         <!-- 5. Status Bar & Progress -->

@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="MovieTweaks.Controls.TimelineControl"
+<UserControl x:Class="MovieTweaks.Controls.TimelineControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
@@ -22,7 +22,9 @@
         <!-- Video & Cut Track -->
         <Border Grid.Row="1" Background="#1E1E1E" BorderBrush="#2D2D30" BorderThickness="0,0,0,1">
             <Canvas x:Name="VideoTrackCanvas" ClipToBounds="True" Background="Transparent"
-                    MouseDown="Track_MouseDown"/>
+                    MouseDown="Track_MouseDown"
+                    MouseMove="VideoTrack_MouseMove"
+                    MouseUp="VideoTrack_MouseUp"/>
         </Border>
 
         <!-- Overlays Track -->

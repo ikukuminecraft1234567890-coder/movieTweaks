@@ -30,7 +30,7 @@ namespace MovieTweaks.Controls
                 new PropertyMetadata(null, OnOverlaysChanged));
 
         public static readonly DependencyProperty SelectedItemProperty =
-            DependencyProperty.Register(nameof(SelectedItem), typeof(OverlayItem), typeof(TimelineControl),
+            DependencyProperty.Register(nameof(SelectedItem), typeof(object), typeof(TimelineControl),
                 new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnSelectedItemChanged));
 
         public static readonly DependencyProperty ZoomProperty =
@@ -61,9 +61,9 @@ namespace MovieTweaks.Controls
             set => SetValue(OverlaysProperty, value);
         }
 
-        public OverlayItem? SelectedItem
+        public object? SelectedItem
         {
-            get => (OverlayItem?)GetValue(SelectedItemProperty);
+            get => GetValue(SelectedItemProperty);
             set => SetValue(SelectedItemProperty, value);
         }
 
@@ -78,6 +78,7 @@ namespace MovieTweaks.Controls
         private enum BarDragMode { None, Slide, TrimLeft, TrimRight }
         private BarDragMode _barDragMode = BarDragMode.None;
         private OverlayItem? _draggingOverlay;
+        private CutRange? _draggingCutRange;
         private Point _dragStartPos;
         private double _dragStartStartTime;
         private double _dragStartEndTime;
@@ -101,7 +102,11 @@ namespace MovieTweaks.Controls
 
         private static void OnSelectedItemChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            if (d is TimelineControl tc) tc.RedrawOverlays();
+            if (d is TimelineControl tc)
+            {
+                tc.RedrawVideoTrack();
+                tc.RedrawOverlays();
+            }
         }
 
         private static void OnCutRangesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -118,6 +123,19 @@ namespace MovieTweaks.Controls
         }
 
         private void OnCutRangesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (e.NewItems != null)
+            {
+                foreach (CutRange r in e.NewItems) r.PropertyChanged += OnCutRangePropertyChanged;
+            }
+            if (e.OldItems != null)
+            {
+                foreach (CutRange r in e.OldItems) r.PropertyChanged -= OnCutRangePropertyChanged;
+            }
+            RedrawVideoTrack();
+        }
+
+        private void OnCutRangePropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             RedrawVideoTrack();
         }
@@ -181,7 +199,6 @@ namespace MovieTweaks.Controls
             RulerCanvas.Children.Clear();
             if (Duration <= 0 || ActualWidth <= 0) return;
 
-            // Step calculation based on duration & width
             double step = 1.0;
             if (Duration > 60) step = 10.0;
             if (Duration > 300) step = 30.0;
@@ -192,7 +209,6 @@ namespace MovieTweaks.Controls
             {
                 double x = TimeToX(t);
 
-                // Tick
                 var line = new Line
                 {
                     X1 = x,
@@ -204,7 +220,6 @@ namespace MovieTweaks.Controls
                 };
                 RulerCanvas.Children.Add(line);
 
-                // Label
                 var text = new TextBlock
                 {
                     Text = FormatRulerTime(t),
@@ -228,20 +243,20 @@ namespace MovieTweaks.Controls
             VideoTrackCanvas.Children.Clear();
             if (Duration <= 0 || ActualWidth <= 0) return;
 
-            // Draw base video track bar
+            // Background empty track
             var baseRect = new Rectangle
             {
                 Width = ActualWidth,
-                Height = 28,
-                Fill = new SolidColorBrush(Color.FromRgb(40, 40, 40)),
+                Height = 30,
+                Fill = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
                 RadiusX = 3,
                 RadiusY = 3
             };
             Canvas.SetLeft(baseRect, 0);
-            Canvas.SetTop(baseRect, 4);
+            Canvas.SetTop(baseRect, 3);
             VideoTrackCanvas.Children.Add(baseRect);
 
-            // Draw kept ranges
+            // Draw each cut range / video segment
             if (CutRanges != null)
             {
                 foreach (var obj in CutRanges)
@@ -249,33 +264,72 @@ namespace MovieTweaks.Controls
                     if (obj is not CutRange r || !r.IsKeep) continue;
                     double x1 = TimeToX(r.StartSeconds);
                     double x2 = TimeToX(r.EndSeconds);
-                    double w = Math.Max(2, x2 - x1);
+                    double w = Math.Max(12, x2 - x1);
 
-                    var keepBar = new Rectangle
+                    bool isSel = (SelectedItem == r) || (SelectedItem is VideoClip);
+
+                    var clipBorder = new Border
                     {
                         Width = w,
-                        Height = 26,
-                        Fill = new SolidColorBrush(Color.FromArgb(200, 0, 122, 204)), // VS Blue
-                        Stroke = new SolidColorBrush(Color.FromRgb(0, 150, 255)),
-                        StrokeThickness = 1,
-                        RadiusX = 2,
-                        RadiusY = 2
+                        Height = 28,
+                        Background = new SolidColorBrush(Color.FromRgb(16, 124, 65)), // Video Clip Green / Teal
+                        BorderBrush = isSel ? Brushes.White : new SolidColorBrush(Color.FromArgb(180, 50, 205, 120)),
+                        BorderThickness = new Thickness(isSel ? 2 : 1),
+                        CornerRadius = new CornerRadius(3),
+                        Cursor = Cursors.Hand,
+                        ToolTip = $"動画クリップ [{r.StartSeconds:F1}s - {r.EndSeconds:F1}s] (クリックで選択・端をドラッグでトリミング)"
                     };
-                    Canvas.SetLeft(keepBar, x1);
-                    Canvas.SetTop(keepBar, 5);
-                    VideoTrackCanvas.Children.Add(keepBar);
 
-                    // Cut range text
+                    var clipContent = new Grid();
                     var lbl = new TextBlock
                     {
-                        Text = $"{r.Duration:F1}s",
+                        Text = $"🎬 動画 ({r.Duration:F1}s)",
                         Foreground = Brushes.White,
-                        FontSize = 10,
-                        Margin = new Thickness(4, 2, 0, 0)
+                        FontSize = 11,
+                        FontWeight = isSel ? FontWeights.Bold : FontWeights.Normal,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(8, 0, 8, 0)
                     };
-                    Canvas.SetLeft(lbl, x1);
-                    Canvas.SetTop(lbl, 8);
-                    VideoTrackCanvas.Children.Add(lbl);
+                    clipContent.Children.Add(lbl);
+                    clipBorder.Child = clipContent;
+
+                    Canvas.SetLeft(clipBorder, x1);
+                    Canvas.SetTop(clipBorder, 4);
+
+                    // Click to select clip and handle edge trimming
+                    clipBorder.MouseDown += (s, e) =>
+                    {
+                        if (e.ChangedButton == MouseButton.Left)
+                        {
+                            SelectedItem = r;
+                            _draggingCutRange = r;
+                            _dragStartPos = e.GetPosition(VideoTrackCanvas);
+                            _dragStartStartTime = r.StartSeconds;
+                            _dragStartEndTime = r.EndSeconds;
+
+                            var localX = e.GetPosition(clipBorder).X;
+                            if (localX < 8)
+                            {
+                                _barDragMode = BarDragMode.TrimLeft;
+                                clipBorder.Cursor = Cursors.SizeWE;
+                            }
+                            else if (localX > clipBorder.ActualWidth - 8)
+                            {
+                                _barDragMode = BarDragMode.TrimRight;
+                                clipBorder.Cursor = Cursors.SizeWE;
+                            }
+                            else
+                            {
+                                _barDragMode = BarDragMode.None;
+                                SeekToMouse(e.GetPosition(VideoTrackCanvas).X);
+                            }
+
+                            VideoTrackCanvas.CaptureMouse();
+                            e.Handled = true;
+                        }
+                    };
+
+                    VideoTrackCanvas.Children.Add(clipBorder);
                 }
             }
         }
@@ -285,7 +339,7 @@ namespace MovieTweaks.Controls
             OverlayTrackCanvas.Children.Clear();
             if (Duration <= 0 || ActualWidth <= 0 || Overlays == null) return;
 
-            int rowHeight = 26;
+            int rowHeight = 24;
             int currentY = 4;
 
             foreach (var obj in Overlays)
@@ -294,7 +348,7 @@ namespace MovieTweaks.Controls
 
                 double x1 = TimeToX(item.StartTime);
                 double x2 = TimeToX(item.EndTime);
-                double w = Math.Max(10, x2 - x1);
+                double w = Math.Max(12, x2 - x1);
 
                 bool isSel = item == SelectedItem;
 
@@ -302,7 +356,7 @@ namespace MovieTweaks.Controls
                 {
                     TextOverlay => new SolidColorBrush(Color.FromRgb(220, 120, 50)), // Orange
                     ShapeOverlay => new SolidColorBrush(Color.FromRgb(200, 60, 100)), // Magenta
-                    ImageOverlay => new SolidColorBrush(Color.FromRgb(60, 160, 90)), // Green
+                    ImageOverlay => new SolidColorBrush(Color.FromRgb(0, 122, 204)), // Blue
                     _ => new SolidColorBrush(Colors.SteelBlue)
                 };
 
@@ -318,7 +372,6 @@ namespace MovieTweaks.Controls
                     Cursor = Cursors.Hand
                 };
 
-                // Label inside bar
                 var tb = new TextBlock
                 {
                     Text = item.Name,
@@ -334,7 +387,6 @@ namespace MovieTweaks.Controls
                 Canvas.SetLeft(border, x1);
                 Canvas.SetTop(border, currentY);
 
-                // Mouse interaction for the bar
                 border.MouseDown += (s, e) =>
                 {
                     if (e.ChangedButton == MouseButton.Left)
@@ -345,7 +397,6 @@ namespace MovieTweaks.Controls
                         _dragStartStartTime = item.StartTime;
                         _dragStartEndTime = item.EndTime;
 
-                        // Check if clicking near left or right edges for trimming
                         var localX = e.GetPosition(border).X;
                         if (localX < 6)
                         {
@@ -413,9 +464,40 @@ namespace MovieTweaks.Controls
 
         private void Track_MouseDown(object sender, MouseButtonEventArgs e)
         {
-            if (e.ChangedButton == MouseButton.Left)
+            if (e.ChangedButton == MouseButton.Left && _barDragMode == BarDragMode.None)
             {
                 SeekToMouse(e.GetPosition(VideoTrackCanvas).X);
+            }
+        }
+
+        private void VideoTrack_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (_barDragMode != BarDragMode.None && _draggingCutRange != null)
+            {
+                var curPos = e.GetPosition(VideoTrackCanvas);
+                var deltaSec = XToTime(curPos.X) - XToTime(_dragStartPos.X);
+
+                if (_barDragMode == BarDragMode.TrimLeft)
+                {
+                    _draggingCutRange.StartSeconds = Math.Clamp(_dragStartStartTime + deltaSec, 0, _draggingCutRange.EndSeconds - 0.2);
+                    CurrentTime = _draggingCutRange.StartSeconds;
+                }
+                else if (_barDragMode == BarDragMode.TrimRight)
+                {
+                    _draggingCutRange.EndSeconds = Math.Clamp(_dragStartEndTime + deltaSec, _draggingCutRange.StartSeconds + 0.2, Duration);
+                    CurrentTime = _draggingCutRange.EndSeconds;
+                }
+                RedrawVideoTrack();
+            }
+        }
+
+        private void VideoTrack_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (_draggingCutRange != null)
+            {
+                _draggingCutRange = null;
+                _barDragMode = BarDragMode.None;
+                VideoTrackCanvas.ReleaseMouseCapture();
             }
         }
 
@@ -428,9 +510,7 @@ namespace MovieTweaks.Controls
         {
             if (e.ChangedButton == MouseButton.Left && _barDragMode == BarDragMode.None)
             {
-                // Click on empty track area seeks
                 SeekToMouse(e.GetPosition(OverlayTrackCanvas).X);
-                SelectedItem = null;
             }
         }
 
@@ -453,11 +533,13 @@ namespace MovieTweaks.Controls
                     case BarDragMode.TrimLeft:
                         var trimmedStart = Math.Clamp(_dragStartStartTime + deltaSec, 0, _draggingOverlay.EndTime - 0.2);
                         _draggingOverlay.StartTime = trimmedStart;
+                        CurrentTime = trimmedStart;
                         break;
 
                     case BarDragMode.TrimRight:
                         var trimmedEnd = Math.Clamp(_dragStartEndTime + deltaSec, _draggingOverlay.StartTime + 0.2, Duration);
                         _draggingOverlay.EndTime = trimmedEnd;
+                        CurrentTime = trimmedEnd;
                         break;
                 }
 

@@ -11,6 +11,8 @@ namespace MovieTweaks
     {
         private readonly MainViewModel _vm;
         private readonly DispatcherTimer _syncTimer;
+        private readonly DispatcherTimer _scrubDebounceTimer;
+        private double _pendingSeekSeconds = -1;
         private bool _isSeekingByCode;
 
         public MainWindow()
@@ -19,6 +21,23 @@ namespace MovieTweaks
             _vm = new MainViewModel();
             DataContext = _vm;
 
+            // Debounce timer for smooth seek without freeze or click noise
+            _scrubDebounceTimer = new DispatcherTimer(DispatcherPriority.Normal)
+            {
+                Interval = TimeSpan.FromMilliseconds(40)
+            };
+            _scrubDebounceTimer.Tick += (s, e) =>
+            {
+                _scrubDebounceTimer.Stop();
+                if (_pendingSeekSeconds >= 0 && Player.Source != null)
+                {
+                    _isSeekingByCode = true;
+                    Player.Position = TimeSpan.FromSeconds(_pendingSeekSeconds);
+                    _pendingSeekSeconds = -1;
+                    _isSeekingByCode = false;
+                }
+            };
+
             // MediaElement Callbacks
             _vm.RequestLoadMedia = filePath =>
             {
@@ -26,7 +45,8 @@ namespace MovieTweaks
                 {
                     Player.Stop();
                     Player.Source = new Uri(filePath, UriKind.Absolute);
-                    // Trigger preroll / decode of first frame
+                    // Safe initial preroll without audio noise
+                    Player.IsMuted = true;
                     Player.Play();
                     Player.Pause();
                 }
@@ -40,6 +60,13 @@ namespace MovieTweaks
             {
                 if (Player.Source != null)
                 {
+                    Player.IsMuted = false;
+                    var clip = _vm.SelectedVideoClip ?? _vm.Project.SourceVideo;
+                    if (clip != null)
+                    {
+                        Player.Volume = clip.Volume;
+                        Player.SpeedRatio = clip.PlaybackSpeed;
+                    }
                     Player.Play();
                 }
             };
@@ -54,17 +81,22 @@ namespace MovieTweaks
 
             _vm.RequestMediaSeek = seconds =>
             {
-                if (Player.Source != null)
+                if (Player.Source == null) return;
+
+                // Mute during scrubbing to completely eliminate pop/click noises
+                if (!_vm.IsPlaying)
+                {
+                    Player.IsMuted = true;
+                }
+
+                _pendingSeekSeconds = seconds;
+
+                if (!_scrubDebounceTimer.IsEnabled)
                 {
                     _isSeekingByCode = true;
                     Player.Position = TimeSpan.FromSeconds(seconds);
-                    // In manual mode, scrubbing requires Play+Pause cycle if paused
-                    if (!_vm.IsPlaying)
-                    {
-                        Player.Play();
-                        Player.Pause();
-                    }
                     _isSeekingByCode = false;
+                    _scrubDebounceTimer.Start();
                 }
             };
 
@@ -75,6 +107,15 @@ namespace MovieTweaks
             };
             _syncTimer.Tick += SyncTimer_Tick;
             _syncTimer.Start();
+
+            // YMM4-style: Clicking on video canvas empty area selects video clip
+            OverlayCanvasControl.CanvasEmptyClicked += (s, e) =>
+            {
+                if (_vm.Project.SourceVideo != null)
+                {
+                    _vm.SelectedItem = _vm.Project.SourceVideo;
+                }
+            };
         }
 
         private void SyncTimer_Tick(object? sender, EventArgs e)

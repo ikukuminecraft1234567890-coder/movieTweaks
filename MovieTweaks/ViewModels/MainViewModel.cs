@@ -23,7 +23,6 @@ namespace MovieTweaks.ViewModels
         private double _currentTimeSeconds;
         private bool _isSyncingFromPlayer;
         private bool _isPlaying;
-        private OverlayItem? _selectedOverlay;
         private bool _isExporting;
         private double _exportProgress;
         private string _statusMessage = "動画ファイルをドラッグ＆ドロップするか、「動画を開く」をクリックしてください。";
@@ -82,16 +81,31 @@ namespace MovieTweaks.ViewModels
 
         public string PlayPauseButtonText => IsPlaying ? "一時停止" : "再生";
 
-        public OverlayItem? SelectedOverlay
+        private object? _selectedItem;
+
+        public object? SelectedItem
         {
-            get => _selectedOverlay;
+            get => _selectedItem;
             set
             {
-                if (_selectedOverlay != null) _selectedOverlay.IsSelected = false;
-                if (SetProperty(ref _selectedOverlay, value))
+                // Deselect previous
+                if (_selectedItem is OverlayItem oldOv) oldOv.IsSelected = false;
+                if (_selectedItem is VideoClip oldVc) oldVc.IsSelected = false;
+                if (_selectedItem is CutRange oldCr) oldCr.IsSelected = false;
+
+                if (SetProperty(ref _selectedItem, value))
                 {
-                    if (_selectedOverlay != null) _selectedOverlay.IsSelected = true;
+                    if (_selectedItem is OverlayItem newOv) newOv.IsSelected = true;
+                    if (_selectedItem is VideoClip newVc) newVc.IsSelected = true;
+                    if (_selectedItem is CutRange newCr) newCr.IsSelected = true;
+
+                    OnPropertyChanged(nameof(SelectedOverlay));
+                    OnPropertyChanged(nameof(SelectedVideoClip));
+                    OnPropertyChanged(nameof(SelectedCutRange));
+                    OnPropertyChanged(nameof(HasSelection));
                     OnPropertyChanged(nameof(HasSelectedOverlay));
+                    OnPropertyChanged(nameof(IsVideoSelected));
+                    OnPropertyChanged(nameof(IsCutRangeSelected));
                     OnPropertyChanged(nameof(IsTextSelected));
                     OnPropertyChanged(nameof(IsShapeSelected));
                     OnPropertyChanged(nameof(IsImageSelected));
@@ -99,10 +113,22 @@ namespace MovieTweaks.ViewModels
             }
         }
 
-        public bool HasSelectedOverlay => SelectedOverlay != null;
-        public bool IsTextSelected => SelectedOverlay is TextOverlay;
-        public bool IsShapeSelected => SelectedOverlay is ShapeOverlay;
-        public bool IsImageSelected => SelectedOverlay is ImageOverlay;
+        public OverlayItem? SelectedOverlay
+        {
+            get => SelectedItem as OverlayItem;
+            set => SelectedItem = value;
+        }
+
+        public VideoClip? SelectedVideoClip => SelectedItem as VideoClip ?? (SelectedItem is CutRange ? Project.SourceVideo : null);
+        public CutRange? SelectedCutRange => SelectedItem as CutRange;
+
+        public bool HasSelection => SelectedItem != null;
+        public bool HasSelectedOverlay => SelectedItem is OverlayItem;
+        public bool IsVideoSelected => SelectedItem is VideoClip || SelectedItem is CutRange;
+        public bool IsCutRangeSelected => SelectedItem is CutRange;
+        public bool IsTextSelected => SelectedItem is TextOverlay;
+        public bool IsShapeSelected => SelectedItem is ShapeOverlay;
+        public bool IsImageSelected => SelectedItem is ImageOverlay;
 
         public bool IsExporting
         {
@@ -144,9 +170,11 @@ namespace MovieTweaks.ViewModels
         public ICommand SetOutPointCommand { get; }
         public ICommand SplitCutCommand { get; }
         public ICommand ResetCutCommand { get; }
+        public ICommand SelectVideoCommand { get; }
         public ICommand AddTextOverlayCommand { get; }
         public ICommand AddShapeOverlayCommand { get; }
         public ICommand AddImageOverlayCommand { get; }
+        public ICommand DeleteSelectedCommand { get; }
         public ICommand DeleteSelectedOverlayCommand { get; }
         public ICommand DuplicateSelectedOverlayCommand { get; }
         public ICommand ExportLosslessCommand { get; }
@@ -188,11 +216,13 @@ namespace MovieTweaks.ViewModels
             SetOutPointCommand = new RelayCommand(SetOutPoint);
             SplitCutCommand = new RelayCommand(SplitCutAtCurrentTime);
             ResetCutCommand = new RelayCommand(ResetCutRanges);
+            SelectVideoCommand = new RelayCommand(() => SelectedItem = Project.SourceVideo);
 
             AddTextOverlayCommand = new RelayCommand(AddTextOverlay);
             AddShapeOverlayCommand = new RelayCommand<ShapeType?>(shape => AddShapeOverlay(shape ?? ShapeType.Rectangle));
             AddImageOverlayCommand = new RelayCommand(AddImageOverlay);
-            DeleteSelectedOverlayCommand = new RelayCommand(DeleteSelectedOverlay, () => HasSelectedOverlay);
+            DeleteSelectedCommand = new RelayCommand(DeleteSelected, () => HasSelection);
+            DeleteSelectedOverlayCommand = new RelayCommand(DeleteSelected, () => HasSelection);
             DuplicateSelectedOverlayCommand = new RelayCommand(DuplicateSelectedOverlay, () => HasSelectedOverlay);
 
             ExportLosslessCommand = new RelayCommand(async () => await ExportLosslessAsync(), () => Project.SourceVideo != null && !IsExporting);
@@ -223,6 +253,7 @@ namespace MovieTweaks.ViewModels
             Project.CutRanges.Add(new CutRange(0, clip.DurationSeconds, true));
 
             CurrentTimeSeconds = 0;
+            SelectedItem = clip; // Auto-select video clip YMM4-style
             OnPropertyChanged(nameof(TotalDurationSeconds));
             OnPropertyChanged(nameof(FormattedTotalTime));
             OnPropertyChanged(nameof(CurrentTimeDisplay));
@@ -442,16 +473,23 @@ namespace MovieTweaks.ViewModels
             StatusMessage = $"画像を配置しました: {Path.GetFileName(imagePath)}";
         }
 
-        public void DeleteSelectedOverlay()
+        public void DeleteSelected()
         {
-            if (SelectedOverlay != null)
+            if (SelectedItem is OverlayItem item)
             {
-                var item = SelectedOverlay;
-                SelectedOverlay = null;
                 Project.Overlays.Remove(item);
+                SelectedItem = Project.SourceVideo;
                 StatusMessage = "アイテムを削除しました。";
             }
+            else if (SelectedItem is CutRange cr && Project.CutRanges.Count > 1)
+            {
+                Project.CutRanges.Remove(cr);
+                SelectedItem = Project.CutRanges.FirstOrDefault() ?? (object?)Project.SourceVideo;
+                StatusMessage = "カット区間を削除しました。";
+            }
         }
+
+        public void DeleteSelectedOverlay() => DeleteSelected();
 
         public void DuplicateSelectedOverlay()
         {

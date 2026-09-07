@@ -1,4 +1,4 @@
-﻿using MovieTweaks.ViewModels;
+using MovieTweaks.ViewModels;
 
 namespace MovieTweaks.Models
 {
@@ -10,6 +10,10 @@ namespace MovieTweaks.Models
         private int _height = 1080;
         private double _fps = 30.0;
         private bool _hasAudio = true;
+        private double _volume = 1.0;
+        private double _playbackSpeed = 1.0;
+        private double _opacity = 1.0;
+        private bool _isSelected;
 
         public string FilePath
         {
@@ -47,6 +51,30 @@ namespace MovieTweaks.Models
         {
             get => _hasAudio;
             set => SetProperty(ref _hasAudio, value);
+        }
+
+        public double Volume
+        {
+            get => _volume;
+            set => SetProperty(ref _volume, Math.Clamp(value, 0.0, 1.0));
+        }
+
+        public double PlaybackSpeed
+        {
+            get => _playbackSpeed;
+            set => SetProperty(ref _playbackSpeed, Math.Clamp(value, 0.25, 4.0));
+        }
+
+        public double Opacity
+        {
+            get => _opacity;
+            set => SetProperty(ref _opacity, Math.Clamp(value, 0.0, 1.0));
+        }
+
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set => SetProperty(ref _isSelected, value);
         }
     }
 }

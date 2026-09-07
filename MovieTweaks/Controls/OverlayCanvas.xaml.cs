@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
@@ -25,7 +25,7 @@ namespace MovieTweaks.Controls
                 new PropertyMetadata(0.0, OnCurrentTimeChanged));
 
         public static readonly DependencyProperty SelectedItemProperty =
-            DependencyProperty.Register(nameof(SelectedItem), typeof(OverlayItem), typeof(OverlayCanvas),
+            DependencyProperty.Register(nameof(SelectedItem), typeof(object), typeof(OverlayCanvas),
                 new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnSelectedItemChanged));
 
         public static readonly DependencyProperty VideoWidthProperty =
@@ -35,6 +35,8 @@ namespace MovieTweaks.Controls
         public static readonly DependencyProperty VideoHeightProperty =
             DependencyProperty.Register(nameof(VideoHeight), typeof(int), typeof(OverlayCanvas),
                 new PropertyMetadata(1080, OnLayoutParameterChanged));
+
+        public event EventHandler? CanvasEmptyClicked;
 
         public System.Collections.IEnumerable? Overlays
         {
@@ -48,9 +50,9 @@ namespace MovieTweaks.Controls
             set => SetValue(CurrentTimeProperty, value);
         }
 
-        public OverlayItem? SelectedItem
+        public object? SelectedItem
         {
-            get => (OverlayItem?)GetValue(SelectedItemProperty);
+            get => GetValue(SelectedItemProperty);
             set => SetValue(SelectedItemProperty, value);
         }
 
@@ -399,11 +401,11 @@ namespace MovieTweaks.Controls
 
             handle.MouseDown += (s, e) =>
             {
-                if (e.ChangedButton == MouseButton.Left && SelectedItem != null)
+                if (e.ChangedButton == MouseButton.Left && SelectedItem is OverlayItem item)
                 {
                     _dragMode = mode;
                     _dragStartMousePos = e.GetPosition(RootCanvas);
-                    _dragStartItemRect = new Rect(SelectedItem.X, SelectedItem.Y, SelectedItem.Width, SelectedItem.Height);
+                    _dragStartItemRect = new Rect(item.X, item.Y, item.Width, item.Height);
                     RootCanvas.CaptureMouse();
                     e.Handled = true;
                 }
@@ -416,14 +418,14 @@ namespace MovieTweaks.Controls
         {
             if (e.ChangedButton == MouseButton.Left)
             {
-                // Click on empty space deselects
-                SelectedItem = null;
+                // Trigger empty space click to notify parent (select video)
+                CanvasEmptyClicked?.Invoke(this, EventArgs.Empty);
             }
         }
 
         private void RootCanvas_MouseMove(object sender, MouseEventArgs e)
         {
-            if (_dragMode == DragMode.None || SelectedItem == null) return;
+            if (_dragMode == DragMode.None || SelectedItem is not OverlayItem selectedOv) return;
 
             var currentMouse = e.GetPosition(RootCanvas);
             var deltaX = (currentMouse.X - _dragStartMousePos.X) / ScaleX;
@@ -434,58 +436,58 @@ namespace MovieTweaks.Controls
             switch (_dragMode)
             {
                 case DragMode.Move:
-                    SelectedItem.X = Math.Round(r.X + deltaX);
-                    SelectedItem.Y = Math.Round(r.Y + deltaY);
+                    selectedOv.X = Math.Round(r.X + deltaX);
+                    selectedOv.Y = Math.Round(r.Y + deltaY);
                     break;
 
                 case DragMode.ResizeSE:
-                    SelectedItem.Width = Math.Max(20, Math.Round(r.Width + deltaX));
-                    SelectedItem.Height = Math.Max(20, Math.Round(r.Height + deltaY));
+                    selectedOv.Width = Math.Max(20, Math.Round(r.Width + deltaX));
+                    selectedOv.Height = Math.Max(20, Math.Round(r.Height + deltaY));
                     break;
 
                 case DragMode.ResizeE:
-                    SelectedItem.Width = Math.Max(20, Math.Round(r.Width + deltaX));
+                    selectedOv.Width = Math.Max(20, Math.Round(r.Width + deltaX));
                     break;
 
                 case DragMode.ResizeS:
-                    SelectedItem.Height = Math.Max(20, Math.Round(r.Height + deltaY));
+                    selectedOv.Height = Math.Max(20, Math.Round(r.Height + deltaY));
                     break;
 
                 case DragMode.ResizeNW:
                     var newW = Math.Max(20, r.Width - deltaX);
                     var newH = Math.Max(20, r.Height - deltaY);
-                    SelectedItem.X = Math.Round(r.Right - newW);
-                    SelectedItem.Y = Math.Round(r.Bottom - newH);
-                    SelectedItem.Width = Math.Round(newW);
-                    SelectedItem.Height = Math.Round(newH);
+                    selectedOv.X = Math.Round(r.Right - newW);
+                    selectedOv.Y = Math.Round(r.Bottom - newH);
+                    selectedOv.Width = Math.Round(newW);
+                    selectedOv.Height = Math.Round(newH);
                     break;
 
                 case DragMode.ResizeNE:
                     var wNE = Math.Max(20, r.Width + deltaX);
                     var hNE = Math.Max(20, r.Height - deltaY);
-                    SelectedItem.Y = Math.Round(r.Bottom - hNE);
-                    SelectedItem.Width = Math.Round(wNE);
-                    SelectedItem.Height = Math.Round(hNE);
+                    selectedOv.Y = Math.Round(r.Bottom - hNE);
+                    selectedOv.Width = Math.Round(wNE);
+                    selectedOv.Height = Math.Round(hNE);
                     break;
 
                 case DragMode.ResizeSW:
                     var wSW = Math.Max(20, r.Width - deltaX);
                     var hSW = Math.Max(20, r.Height + deltaY);
-                    SelectedItem.X = Math.Round(r.Right - wSW);
-                    SelectedItem.Width = Math.Round(wSW);
-                    SelectedItem.Height = Math.Round(hSW);
+                    selectedOv.X = Math.Round(r.Right - wSW);
+                    selectedOv.Width = Math.Round(wSW);
+                    selectedOv.Height = Math.Round(hSW);
                     break;
 
                 case DragMode.ResizeW:
                     var wW = Math.Max(20, r.Width - deltaX);
-                    SelectedItem.X = Math.Round(r.Right - wW);
-                    SelectedItem.Width = Math.Round(wW);
+                    selectedOv.X = Math.Round(r.Right - wW);
+                    selectedOv.Width = Math.Round(wW);
                     break;
 
                 case DragMode.ResizeN:
                     var hN = Math.Max(20, r.Height - deltaY);
-                    SelectedItem.Y = Math.Round(r.Bottom - hN);
-                    SelectedItem.Height = Math.Round(hN);
+                    selectedOv.Y = Math.Round(r.Bottom - hN);
+                    selectedOv.Height = Math.Round(hN);
                     break;
             }
 

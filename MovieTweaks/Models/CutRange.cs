@@ -1,4 +1,4 @@
-﻿using MovieTweaks.ViewModels;
+using MovieTweaks.ViewModels;
 
 namespace MovieTweaks.Models
 {
@@ -7,6 +7,7 @@ namespace MovieTweaks.Models
         private double _startSeconds;
         private double _endSeconds;
         private bool _isKeep = true;
+        private bool _isSelected;
 
         public double StartSeconds
         {
@@ -26,6 +27,12 @@ namespace MovieTweaks.Models
         {
             get => _isKeep;
             set => SetProperty(ref _isKeep, value);
+        }
+
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set => SetProperty(ref _isSelected, value);
         }
 
         public CutRange() { }
