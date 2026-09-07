@@ -48,7 +48,7 @@ namespace MovieTweaks.Models
         public double Volume
         {
             get => _volume;
-            set => SetProperty(ref _volume, Math.Clamp(value, 0.0, 5.0));
+            set => SetProperty(ref _volume, Math.Clamp(value, 0.0, 20.0));
         }
 
         public double VolumePercent
@@ -65,7 +65,7 @@ namespace MovieTweaks.Models
         public double PlaybackSpeed
         {
             get => _playbackSpeed;
-            set => SetProperty(ref _playbackSpeed, Math.Clamp(value, 0.1, 10.0));
+            set => SetProperty(ref _playbackSpeed, Math.Clamp(value, 0.01, 100.0));
         }
 
         public double PlaybackSpeedPercent

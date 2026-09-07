@@ -1,16 +1,30 @@
-﻿namespace MovieTweaks.Models
+namespace MovieTweaks.Models
 {
     public enum ShapeType
     {
         Rectangle,
+        RoundedRectangle,
         Ellipse,
+        Triangle,
+        Star,
+        Heart,
+        Diamond,
         Arrow,
-        Line
+        Line,
+        SpeechBubble
+    }
+
+    public enum StrokeStyle
+    {
+        Solid,
+        Dash,
+        Dot
     }
 
     public class ShapeOverlay : OverlayItem
     {
         private ShapeType _shapeType = ShapeType.Rectangle;
+        private StrokeStyle _strokeStyle = StrokeStyle.Solid;
         private string _strokeColor = "#FF3366";
         private string _fillColor = "Transparent";
         private double _strokeThickness = 4;
@@ -20,6 +34,12 @@
         {
             get => _shapeType;
             set => SetProperty(ref _shapeType, value);
+        }
+
+        public StrokeStyle StrokeStyle
+        {
+            get => _strokeStyle;
+            set => SetProperty(ref _strokeStyle, value);
         }
 
         public string StrokeColor
@@ -67,6 +87,7 @@
                 Rotation = Rotation,
                 Opacity = Opacity,
                 ShapeType = ShapeType,
+                StrokeStyle = StrokeStyle,
                 StrokeColor = StrokeColor,
                 FillColor = FillColor,
                 StrokeThickness = StrokeThickness,

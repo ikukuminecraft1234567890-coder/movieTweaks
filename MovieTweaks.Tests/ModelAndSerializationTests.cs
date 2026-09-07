@@ -283,5 +283,113 @@ namespace MovieTweaks.Tests
             cmd.Execute("150");
             Assert.Equal(150.0, received);
         }
+
+        [Fact]
+        public void VolumeAndSpeed_UncappedBeyond500Percent_Supports50xPlaybackSpeed()
+        {
+            var clip = new CutRange(0, 100, 0, true);
+
+            // Volume up to 2000% (20.0)
+            clip.VolumePercent = 2000.0;
+            Assert.Equal(20.0, clip.Volume);
+            Assert.Equal(2000.0, clip.VolumePercent);
+
+            // Speed up to 50x = 5000% (50.0)
+            clip.PlaybackSpeedPercent = 5000.0;
+            Assert.Equal(50.0, clip.PlaybackSpeed);
+            Assert.Equal(5000.0, clip.PlaybackSpeedPercent);
+
+            // VideoClip test
+            var video = new VideoClip { FilePath = "sample.mp4" };
+            video.PlaybackSpeedPercent = 5000.0;
+            Assert.Equal(50.0, video.PlaybackSpeed);
+
+            video.VolumePercent = 1500.0;
+            Assert.Equal(15.0, video.Volume);
+        }
+
+        [Fact]
+        public void FFmpegService_BuildAtempoFilter_ChainsCorrectlyForHighSpeed()
+        {
+            // 50x speed: 2^5 = 32, 50 / 32 = 1.5625
+            string atempo = FFmpegService.BuildAtempoFilter(50.0);
+            Assert.Contains("atempo=2.0", atempo);
+            var parts = atempo.Split(',');
+            Assert.Equal(6, parts.Length); // 5 x atempo=2.0 + 1 x atempo=1.562
+            for (int i = 0; i < 5; i++)
+            {
+                Assert.Equal("atempo=2.0", parts[i]);
+            }
+            Assert.Equal("atempo=1.562", parts[5]);
+        }
+
+        [Fact]
+        public void ShapeOverlay_NewShapes_StarHeartTriangle_ClonesAndSerializesCorrectly()
+        {
+            var shape = new ShapeOverlay
+            {
+                ShapeType = ShapeType.Star,
+                StrokeStyle = StrokeStyle.Dash,
+                StrokeColor = "#FF5500",
+                FillColor = "#FFFF00",
+                StrokeThickness = 5,
+                Rotation = 45.0,
+                CornerRadius = 12.0
+            };
+
+            var cloned = (ShapeOverlay)shape.Clone();
+            Assert.Equal(ShapeType.Star, cloned.ShapeType);
+            Assert.Equal(StrokeStyle.Dash, cloned.StrokeStyle);
+            Assert.Equal("#FF5500", cloned.StrokeColor);
+            Assert.Equal("#FFFF00", cloned.FillColor);
+            Assert.Equal(5, cloned.StrokeThickness);
+            Assert.Equal(45.0, cloned.Rotation);
+            Assert.Equal(12.0, cloned.CornerRadius);
+
+            // Test SpeechBubble and Heart
+            var bubble = new ShapeOverlay { ShapeType = ShapeType.SpeechBubble, StrokeStyle = StrokeStyle.Dot };
+            var bubbleClone = (ShapeOverlay)bubble.Clone();
+            Assert.Equal(ShapeType.SpeechBubble, bubbleClone.ShapeType);
+            Assert.Equal(StrokeStyle.Dot, bubbleClone.StrokeStyle);
+        }
+
+        [Fact]
+        public void TextOverlay_FontFamilyAndAlignment_ClonesAndSerializesCorrectly()
+        {
+            var text = new TextOverlay
+            {
+                Text = "カスタムフォントテロップ",
+                FontFamily = "Impact",
+                FontSize = 64,
+                IsBold = true,
+                IsItalic = true,
+                TextAlignment = "Right",
+                Rotation = 15.0
+            };
+
+            var cloned = (TextOverlay)text.Clone();
+            Assert.Equal("Impact", cloned.FontFamily);
+            Assert.True(cloned.IsBold);
+            Assert.True(cloned.IsItalic);
+            Assert.Equal("Right", cloned.TextAlignment);
+            Assert.Equal(15.0, cloned.Rotation);
+        }
+
+        [Fact]
+        public void Converters_ShapeTypeAndStrokeStyle_ProvideJapaneseDescriptions()
+        {
+            var shapeConv = MovieTweaks.Controls.ShapeTypeConverter.Instance;
+            var strokeConv = MovieTweaks.Controls.StrokeStyleConverter.Instance;
+
+            var culture = System.Globalization.CultureInfo.InvariantCulture;
+            Assert.Contains("星", shapeConv.Convert(ShapeType.Star, typeof(string), null, culture)?.ToString());
+            Assert.Contains("ハート", shapeConv.Convert(ShapeType.Heart, typeof(string), null, culture)?.ToString());
+            Assert.Contains("吹き出し", shapeConv.Convert(ShapeType.SpeechBubble, typeof(string), null, culture)?.ToString());
+            Assert.Contains("三角形", shapeConv.Convert(ShapeType.Triangle, typeof(string), null, culture)?.ToString());
+
+            Assert.Contains("破線", strokeConv.Convert(StrokeStyle.Dash, typeof(string), null, culture)?.ToString());
+            Assert.Contains("点線", strokeConv.Convert(StrokeStyle.Dot, typeof(string), null, culture)?.ToString());
+            Assert.Contains("実線", strokeConv.Convert(StrokeStyle.Solid, typeof(string), null, culture)?.ToString());
+        }
     }
 }

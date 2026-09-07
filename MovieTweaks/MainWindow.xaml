@@ -151,17 +151,37 @@
                     <!-- Overlay Tools -->
                     <TextBlock Text="追加:" VerticalAlignment="Center" Foreground="#999999" Margin="4,0,4,0"/>
                     <Button Content="T 文字" Command="{Binding AddTextOverlayCommand}" ToolTip="テキストテロップを追加"/>
-                    <Button Content="⬛ 四角" Command="{Binding AddShapeOverlayCommand}">
+                    <Button Content="⬛ 四角" Command="{Binding AddShapeOverlayCommand}" ToolTip="四角形を追加">
                         <Button.CommandParameter>
                             <models:ShapeType>Rectangle</models:ShapeType>
                         </Button.CommandParameter>
                     </Button>
-                    <Button Content="⚪ 円" Command="{Binding AddShapeOverlayCommand}">
+                    <Button Content="⚪ 円" Command="{Binding AddShapeOverlayCommand}" ToolTip="円・楕円を追加">
                         <Button.CommandParameter>
                             <models:ShapeType>Ellipse</models:ShapeType>
                         </Button.CommandParameter>
                     </Button>
-                    <Button Content="➔ 矢印" Command="{Binding AddShapeOverlayCommand}">
+                    <Button Content="▲ 三角" Command="{Binding AddShapeOverlayCommand}" ToolTip="三角形を追加">
+                        <Button.CommandParameter>
+                            <models:ShapeType>Triangle</models:ShapeType>
+                        </Button.CommandParameter>
+                    </Button>
+                    <Button Content="★ 星" Command="{Binding AddShapeOverlayCommand}" ToolTip="星を追加">
+                        <Button.CommandParameter>
+                            <models:ShapeType>Star</models:ShapeType>
+                        </Button.CommandParameter>
+                    </Button>
+                    <Button Content="♥ ハート" Command="{Binding AddShapeOverlayCommand}" ToolTip="ハートを追加">
+                        <Button.CommandParameter>
+                            <models:ShapeType>Heart</models:ShapeType>
+                        </Button.CommandParameter>
+                    </Button>
+                    <Button Content="💬 吹出" Command="{Binding AddShapeOverlayCommand}" ToolTip="吹き出しざぶとんを追加">
+                        <Button.CommandParameter>
+                            <models:ShapeType>SpeechBubble</models:ShapeType>
+                        </Button.CommandParameter>
+                    </Button>
+                    <Button Content="➔ 矢印" Command="{Binding AddShapeOverlayCommand}" ToolTip="矢印を追加">
                         <Button.CommandParameter>
                             <models:ShapeType>Arrow</models:ShapeType>
                         </Button.CommandParameter>
@@ -199,6 +219,31 @@
                             <MenuItem Header="⬛ ここに四角形を追加" Command="{Binding AddShapeOverlayCommand}">
                                 <MenuItem.CommandParameter>
                                     <models:ShapeType>Rectangle</models:ShapeType>
+                                </MenuItem.CommandParameter>
+                            </MenuItem>
+                            <MenuItem Header="⚪ ここに円を追加" Command="{Binding AddShapeOverlayCommand}">
+                                <MenuItem.CommandParameter>
+                                    <models:ShapeType>Ellipse</models:ShapeType>
+                                </MenuItem.CommandParameter>
+                            </MenuItem>
+                            <MenuItem Header="▲ ここに三角形を追加" Command="{Binding AddShapeOverlayCommand}">
+                                <MenuItem.CommandParameter>
+                                    <models:ShapeType>Triangle</models:ShapeType>
+                                </MenuItem.CommandParameter>
+                            </MenuItem>
+                            <MenuItem Header="★ ここに星を追加" Command="{Binding AddShapeOverlayCommand}">
+                                <MenuItem.CommandParameter>
+                                    <models:ShapeType>Star</models:ShapeType>
+                                </MenuItem.CommandParameter>
+                            </MenuItem>
+                            <MenuItem Header="♥ ここにハートを追加" Command="{Binding AddShapeOverlayCommand}">
+                                <MenuItem.CommandParameter>
+                                    <models:ShapeType>Heart</models:ShapeType>
+                                </MenuItem.CommandParameter>
+                            </MenuItem>
+                            <MenuItem Header="💬 ここに吹き出しを追加" Command="{Binding AddShapeOverlayCommand}">
+                                <MenuItem.CommandParameter>
+                                    <models:ShapeType>SpeechBubble</models:ShapeType>
                                 </MenuItem.CommandParameter>
                             </MenuItem>
                             <MenuItem Header="➔ ここに矢印を追加" Command="{Binding AddShapeOverlayCommand}">
@@ -303,39 +348,43 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="音量" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"/>
+                                <TextBlock Text="音量 (最大2000%)" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"/>
                                 <TextBox Grid.Column="1" Style="{StaticResource ValueInputBoxStyle}"
                                          Text="{Binding CurrentVolumePercent, Converter={x:Static controls:PercentConverter.Instance}, UpdateSourceTrigger=LostFocus}"/>
                             </Grid>
-                            <Slider Minimum="0" Maximum="300" Value="{Binding CurrentVolumePercent}" SmallChange="5" LargeChange="25"/>
-                            <StackPanel Orientation="Horizontal" Margin="0,2,0,6">
+                            <Slider Minimum="0" Maximum="500" Value="{Binding CurrentVolumePercent}" SmallChange="5" LargeChange="25"/>
+                            <WrapPanel Margin="0,2,0,6">
                                 <Button Content="0%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetVolumePresetCommand}" CommandParameter="0"/>
                                 <Button Content="50%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetVolumePresetCommand}" CommandParameter="50"/>
                                 <Button Content="100%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetVolumePresetCommand}" CommandParameter="100"/>
                                 <Button Content="150%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetVolumePresetCommand}" CommandParameter="150"/>
                                 <Button Content="200%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetVolumePresetCommand}" CommandParameter="200"/>
                                 <Button Content="300%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetVolumePresetCommand}" CommandParameter="300"/>
-                            </StackPanel>
+                                <Button Content="500%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetVolumePresetCommand}" CommandParameter="500"/>
+                                <Button Content="1000%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetVolumePresetCommand}" CommandParameter="1000"/>
+                            </WrapPanel>
 
-                            <!-- Playback Speed Control (% Notation, allows > 100%) -->
+                            <!-- Playback Speed Control (% Notation, allows > 100%, up to 10000% / 100x) -->
                             <Grid Margin="0,6,0,2">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="再生速度" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"/>
+                                <TextBlock Text="再生速度 (50倍=5000%対応)" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"/>
                                 <TextBox Grid.Column="1" Style="{StaticResource ValueInputBoxStyle}"
                                          Text="{Binding CurrentPlaybackSpeedPercent, Converter={x:Static controls:PercentConverter.Instance}, UpdateSourceTrigger=LostFocus}"/>
                             </Grid>
-                            <Slider Minimum="25" Maximum="400" Value="{Binding CurrentPlaybackSpeedPercent}" SmallChange="5" LargeChange="25"/>
-                            <StackPanel Orientation="Horizontal" Margin="0,2,0,6">
+                            <Slider Minimum="25" Maximum="1000" Value="{Binding CurrentPlaybackSpeedPercent}" SmallChange="5" LargeChange="50"/>
+                            <WrapPanel Margin="0,2,0,6">
                                 <Button Content="50%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetSpeedPresetCommand}" CommandParameter="50"/>
-                                <Button Content="75%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetSpeedPresetCommand}" CommandParameter="75"/>
                                 <Button Content="100%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetSpeedPresetCommand}" CommandParameter="100"/>
-                                <Button Content="125%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetSpeedPresetCommand}" CommandParameter="125"/>
                                 <Button Content="150%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetSpeedPresetCommand}" CommandParameter="150"/>
                                 <Button Content="200%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetSpeedPresetCommand}" CommandParameter="200"/>
-                            </StackPanel>
+                                <Button Content="500%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetSpeedPresetCommand}" CommandParameter="500"/>
+                                <Button Content="1000%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetSpeedPresetCommand}" CommandParameter="1000"/>
+                                <Button Content="2000%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetSpeedPresetCommand}" CommandParameter="2000"/>
+                                <Button Content="5000% (50倍)" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetSpeedPresetCommand}" CommandParameter="5000" FontWeight="Bold" Foreground="#4EC9B0"/>
+                            </WrapPanel>
 
                             <Separator Margin="0,10" Background="#333333"/>
 
@@ -437,21 +486,55 @@
                                 <TextBox Grid.Column="1" Style="{StaticResource ValueInputBoxStyle}"
                                          Text="{Binding CurrentScalePercent, Converter={x:Static controls:PercentConverter.Instance}, UpdateSourceTrigger=LostFocus}"/>
                             </Grid>
-                            <Slider Minimum="20" Maximum="300" Value="{Binding CurrentScalePercent}" SmallChange="5" LargeChange="20"/>
-                            <StackPanel Orientation="Horizontal" Margin="0,2,0,6">
+                            <Slider Minimum="20" Maximum="500" Value="{Binding CurrentScalePercent}" SmallChange="5" LargeChange="20"/>
+                            <WrapPanel Margin="0,2,0,6">
                                 <Button Content="50%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetScalePresetCommand}" CommandParameter="50"/>
                                 <Button Content="75%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetScalePresetCommand}" CommandParameter="75"/>
                                 <Button Content="100%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetScalePresetCommand}" CommandParameter="100"/>
                                 <Button Content="150%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetScalePresetCommand}" CommandParameter="150"/>
                                 <Button Content="200%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetScalePresetCommand}" CommandParameter="200"/>
-                            </StackPanel>
+                                <Button Content="300%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetScalePresetCommand}" CommandParameter="300"/>
+                                <Button Content="500%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetScalePresetCommand}" CommandParameter="500"/>
+                                <Button Content="1000%" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetScalePresetCommand}" CommandParameter="1000"/>
+                            </WrapPanel>
+
+                            <!-- Rotation (Degree) -->
+                            <Grid Margin="0,6,0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="回転角度 (°)" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1" Style="{StaticResource ValueInputBoxStyle}"
+                                         Text="{Binding CurrentRotationDegrees, Converter={x:Static controls:UnitConverter.Instance}, ConverterParameter='°', UpdateSourceTrigger=LostFocus}"/>
+                            </Grid>
+                            <Slider Minimum="0" Maximum="360" Value="{Binding CurrentRotationDegrees}" SmallChange="1" LargeChange="15"/>
+                            <WrapPanel Margin="0,2,0,6">
+                                <Button Content="0°" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetRotationPresetCommand}" CommandParameter="0"/>
+                                <Button Content="45°" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetRotationPresetCommand}" CommandParameter="45"/>
+                                <Button Content="90°" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetRotationPresetCommand}" CommandParameter="90"/>
+                                <Button Content="180°" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetRotationPresetCommand}" CommandParameter="180"/>
+                                <Button Content="270°" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetRotationPresetCommand}" CommandParameter="270"/>
+                            </WrapPanel>
 
                             <Separator Margin="0,12" Background="#333333"/>
 
                             <!-- TEXT SPECIFIC CONTROLS -->
                             <StackPanel Visibility="{Binding IsTextSelected, Converter={x:Static controls:BooleanToVisibilityConverter.Instance}}">
                                 <TextBlock Text="文字内容" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,2"/>
-                                <TextBox Text="{Binding SelectedOverlay.Text, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" Height="60" TextWrapping="Wrap"/>
+                                <TextBox Text="{Binding SelectedOverlay.Text, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" Height="50" TextWrapping="Wrap"/>
+
+                                <!-- Font Family Selection with Preview -->
+                                <TextBlock Text="フォント (書体一覧)" Foreground="#AAAAAA" FontSize="11" Margin="0,8,0,2"/>
+                                <ComboBox ItemsSource="{Binding AvailableFontFamilies}"
+                                          SelectedItem="{Binding SelectedTextOverlay.FontFamily, UpdateSourceTrigger=PropertyChanged}"
+                                          MaxDropDownHeight="320">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" FontFamily="{Binding}" FontSize="13" VerticalAlignment="Center"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
 
                                 <Grid Margin="0,8,0,2">
                                     <Grid.ColumnDefinitions>
@@ -464,7 +547,48 @@
                                 </Grid>
                                 <Slider Minimum="12" Maximum="140" Value="{Binding SelectedTextOverlay.FontSize}"/>
 
-                                <Grid Margin="0,8,0,0">
+                                <!-- Alignment & Styles -->
+                                <Grid Margin="0,8,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="文字揃え / スタイル" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <CheckBox Content="太字" IsChecked="{Binding SelectedTextOverlay.IsBold}" Margin="0,0,8,0" Foreground="#E0E0E0" FontSize="11"/>
+                                        <CheckBox Content="斜体" IsChecked="{Binding SelectedTextOverlay.IsItalic}" Foreground="#E0E0E0" FontSize="11"/>
+                                    </StackPanel>
+                                </Grid>
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,6">
+                                    <Button Content="左揃え" Style="{StaticResource PresetButtonStyle}" Width="60" Command="{Binding SetTextAlignmentCommand}" CommandParameter="Left"/>
+                                    <Button Content="中央揃え" Style="{StaticResource PresetButtonStyle}" Width="60" Command="{Binding SetTextAlignmentCommand}" CommandParameter="Center"/>
+                                    <Button Content="右揃え" Style="{StaticResource PresetButtonStyle}" Width="60" Command="{Binding SetTextAlignmentCommand}" CommandParameter="Right"/>
+                                </StackPanel>
+
+                                <!-- YMM4-style Telop Color Presets -->
+                                <TextBlock Text="定番テロップ配色 (YMM4風プリセット)" Foreground="#AAAAAA" FontSize="11" Margin="0,6,0,2"/>
+                                <WrapPanel Margin="0,2,0,6">
+                                    <Button Style="{StaticResource PresetButtonStyle}" Command="{Binding ApplyTextPresetColorCommand}" CommandParameter="WhiteBlack" ToolTip="白文字 + 黒縁取り">
+                                        <TextBlock Text="白/黒" Foreground="White" Background="Black" Padding="4,1"/>
+                                    </Button>
+                                    <Button Style="{StaticResource PresetButtonStyle}" Command="{Binding ApplyTextPresetColorCommand}" CommandParameter="YellowBlack" ToolTip="黄色文字 + 黒縁取り">
+                                        <TextBlock Text="黄/黒" Foreground="Yellow" Background="Black" Padding="4,1"/>
+                                    </Button>
+                                    <Button Style="{StaticResource PresetButtonStyle}" Command="{Binding ApplyTextPresetColorCommand}" CommandParameter="RedWhite" ToolTip="赤文字 + 白縁取り">
+                                        <TextBlock Text="赤/白" Foreground="Red" Background="White" Padding="4,1"/>
+                                    </Button>
+                                    <Button Style="{StaticResource PresetButtonStyle}" Command="{Binding ApplyTextPresetColorCommand}" CommandParameter="CyanBlack" ToolTip="水色文字 + 黒縁取り">
+                                        <TextBlock Text="水/黒" Foreground="Cyan" Background="Black" Padding="4,1"/>
+                                    </Button>
+                                    <Button Style="{StaticResource PresetButtonStyle}" Command="{Binding ApplyTextPresetColorCommand}" CommandParameter="GreenBlack" ToolTip="緑文字 + 黒縁取り">
+                                        <TextBlock Text="緑/黒" Foreground="#00FF66" Background="Black" Padding="4,1"/>
+                                    </Button>
+                                    <Button Style="{StaticResource PresetButtonStyle}" Command="{Binding ApplyTextPresetColorCommand}" CommandParameter="BlackWhite" ToolTip="黒文字 + 白縁取り">
+                                        <TextBlock Text="黒/白" Foreground="Black" Background="White" Padding="4,1"/>
+                                    </Button>
+                                </WrapPanel>
+
+                                <Grid Margin="0,4,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="*"/>
@@ -479,7 +603,7 @@
                                     </StackPanel>
                                 </Grid>
 
-                                <Grid Margin="0,8,0,2">
+                                <Grid Margin="0,6,0,2">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
@@ -490,10 +614,10 @@
                                 </Grid>
                                 <Slider Minimum="0" Maximum="20" Value="{Binding SelectedTextOverlay.OutlineThickness}"/>
 
-                                <TextBlock Text="背景色 (HEX / Transparent)" Foreground="#AAAAAA" FontSize="11" Margin="0,8,0,2"/>
+                                <TextBlock Text="背景色 (HEX / Transparent)" Foreground="#AAAAAA" FontSize="11" Margin="0,6,0,2"/>
                                 <TextBox Text="{Binding SelectedOverlay.BackgroundColor, UpdateSourceTrigger=PropertyChanged}"/>
 
-                                <Grid Margin="0,8,0,2">
+                                <Grid Margin="0,6,0,2">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
@@ -503,19 +627,65 @@
                                              Text="{Binding SelectedTextOverlay.BackgroundCornerRadius, Converter={x:Static controls:UnitConverter.Instance}, ConverterParameter='px', UpdateSourceTrigger=LostFocus}"/>
                                 </Grid>
                                 <Slider Minimum="0" Maximum="40" Value="{Binding SelectedTextOverlay.BackgroundCornerRadius}"/>
-
-                                <CheckBox Content="太字 (Bold)" IsChecked="{Binding SelectedOverlay.IsBold}" Margin="0,8,0,0" Foreground="#E0E0E0"/>
                             </StackPanel>
 
-                            <!-- SHAPE SPECIFIC CONTROLS -->
+                            <!-- SHAPE SPECIFIC CONTROLS (YMM4-style high freedom) -->
                             <StackPanel Visibility="{Binding IsShapeSelected, Converter={x:Static controls:BooleanToVisibilityConverter.Instance}}">
-                                <TextBlock Text="枠線色 (HEX)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,2"/>
-                                <TextBox Text="{Binding SelectedOverlay.StrokeColor, UpdateSourceTrigger=PropertyChanged}"/>
+                                <!-- Shape Type Switcher -->
+                                <TextBlock Text="図形の種類" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,2"/>
+                                <ComboBox ItemsSource="{Binding AvailableShapeTypes}"
+                                          SelectedItem="{Binding SelectedShapeOverlay.ShapeType, UpdateSourceTrigger=PropertyChanged}"
+                                          MaxDropDownHeight="300">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={x:Static controls:ShapeTypeConverter.Instance}}" FontSize="12"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
 
+                                <!-- Stroke Style (Solid / Dash / Dot) -->
+                                <TextBlock Text="線の種類 (破線・点線)" Foreground="#AAAAAA" FontSize="11" Margin="0,8,0,2"/>
+                                <ComboBox ItemsSource="{Binding AvailableStrokeStyles}"
+                                          SelectedItem="{Binding SelectedShapeOverlay.StrokeStyle, UpdateSourceTrigger=PropertyChanged}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={x:Static controls:StrokeStyleConverter.Instance}}" FontSize="12"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+
+                                <!-- Fill Color & Quick Palette -->
                                 <TextBlock Text="塗りつぶし色 (HEX / Transparent)" Foreground="#AAAAAA" FontSize="11" Margin="0,8,0,2"/>
                                 <TextBox Text="{Binding SelectedOverlay.FillColor, UpdateSourceTrigger=PropertyChanged}"/>
+                                <WrapPanel Margin="0,2,0,4">
+                                    <Button Content="透明" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeFillPresetCommand}" CommandParameter="Transparent"/>
+                                    <Button Content="白" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeFillPresetCommand}" CommandParameter="#FFFFFF"/>
+                                    <Button Content="黒" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeFillPresetCommand}" CommandParameter="#000000"/>
+                                    <Button Content="赤" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeFillPresetCommand}" CommandParameter="#FF0000"/>
+                                    <Button Content="黄" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeFillPresetCommand}" CommandParameter="#FFFF00"/>
+                                    <Button Content="緑" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeFillPresetCommand}" CommandParameter="#00CC44"/>
+                                    <Button Content="水色" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeFillPresetCommand}" CommandParameter="#00CCFF"/>
+                                    <Button Content="青" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeFillPresetCommand}" CommandParameter="#0066FF"/>
+                                    <Button Content="橙" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeFillPresetCommand}" CommandParameter="#FF8800"/>
+                                    <Button Content="半黒" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeFillPresetCommand}" CommandParameter="#80000000" ToolTip="半透明黒（ざぶとん用）"/>
+                                </WrapPanel>
 
-                                <Grid Margin="0,8,0,2">
+                                <!-- Stroke Color & Quick Palette -->
+                                <TextBlock Text="枠線色 (HEX / Transparent)" Foreground="#AAAAAA" FontSize="11" Margin="0,6,0,2"/>
+                                <TextBox Text="{Binding SelectedOverlay.StrokeColor, UpdateSourceTrigger=PropertyChanged}"/>
+                                <WrapPanel Margin="0,2,0,4">
+                                    <Button Content="無枠" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeStrokePresetCommand}" CommandParameter="Transparent"/>
+                                    <Button Content="白" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeStrokePresetCommand}" CommandParameter="#FFFFFF"/>
+                                    <Button Content="黒" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeStrokePresetCommand}" CommandParameter="#000000"/>
+                                    <Button Content="赤" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeStrokePresetCommand}" CommandParameter="#FF0000"/>
+                                    <Button Content="黄" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeStrokePresetCommand}" CommandParameter="#FFFF00"/>
+                                    <Button Content="緑" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeStrokePresetCommand}" CommandParameter="#00CC44"/>
+                                    <Button Content="水色" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeStrokePresetCommand}" CommandParameter="#00CCFF"/>
+                                    <Button Content="青" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeStrokePresetCommand}" CommandParameter="#0066FF"/>
+                                    <Button Content="橙" Style="{StaticResource PresetButtonStyle}" Command="{Binding SetShapeStrokePresetCommand}" CommandParameter="#FF8800"/>
+                                </WrapPanel>
+
+                                <Grid Margin="0,6,0,2">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
@@ -524,18 +694,18 @@
                                     <TextBox Grid.Column="1" Style="{StaticResource ValueInputBoxStyle}"
                                              Text="{Binding SelectedShapeOverlay.StrokeThickness, Converter={x:Static controls:UnitConverter.Instance}, ConverterParameter='px', UpdateSourceTrigger=LostFocus}"/>
                                 </Grid>
-                                <Slider Minimum="1" Maximum="30" Value="{Binding SelectedShapeOverlay.StrokeThickness}"/>
+                                <Slider Minimum="0" Maximum="40" Value="{Binding SelectedShapeOverlay.StrokeThickness}"/>
 
-                                <Grid Margin="0,8,0,2">
+                                <Grid Margin="0,6,0,2">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="角丸 (四角形)" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"/>
+                                    <TextBlock Text="角丸 (四角形・吹出)" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"/>
                                     <TextBox Grid.Column="1" Style="{StaticResource ValueInputBoxStyle}"
                                              Text="{Binding SelectedShapeOverlay.CornerRadius, Converter={x:Static controls:UnitConverter.Instance}, ConverterParameter='px', UpdateSourceTrigger=LostFocus}"/>
                                 </Grid>
-                                <Slider Minimum="0" Maximum="40" Value="{Binding SelectedShapeOverlay.CornerRadius}"/>
+                                <Slider Minimum="0" Maximum="60" Value="{Binding SelectedShapeOverlay.CornerRadius}"/>
                             </StackPanel>
 
                             <!-- IMAGE SPECIFIC CONTROLS -->

@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using MovieTweaks.Models;
@@ -174,6 +175,7 @@ namespace MovieTweaks.ViewModels
                     OnPropertyChanged(nameof(CurrentPlaybackSpeedPercent));
                     OnPropertyChanged(nameof(CurrentOpacityPercent));
                     OnPropertyChanged(nameof(CurrentScalePercent));
+                    OnPropertyChanged(nameof(CurrentRotationDegrees));
                     OnPropertyChanged(nameof(HasSelection));
                     OnPropertyChanged(nameof(HasSelectedOverlay));
                     OnPropertyChanged(nameof(IsVideoSelected));
@@ -207,7 +209,7 @@ namespace MovieTweaks.ViewModels
             }
             set
             {
-                value = Math.Clamp(value, 0.0, 500.0);
+                value = Math.Clamp(value, 0.0, 2000.0);
                 if (SelectedCutRange != null)
                 {
                     SelectedCutRange.VolumePercent = value;
@@ -241,7 +243,7 @@ namespace MovieTweaks.ViewModels
             }
             set
             {
-                value = Math.Clamp(value, 10.0, 1000.0);
+                value = Math.Clamp(value, 1.0, 10000.0);
                 double speed = value / 100.0;
                 if (SelectedCutRange != null)
                 {
@@ -268,7 +270,7 @@ namespace MovieTweaks.ViewModels
 
         public void SetClipPlaybackSpeed(CutRange clip, double newSpeed)
         {
-            if (newSpeed <= 0.05 || Math.Abs(clip.PlaybackSpeed - newSpeed) < 0.001) return;
+            if (newSpeed <= 0.005 || Math.Abs(clip.PlaybackSpeed - newSpeed) < 0.0001) return;
 
             RecordHistory();
             double sourceDuration = clip.Duration * clip.PlaybackSpeed;
@@ -324,11 +326,71 @@ namespace MovieTweaks.ViewModels
             {
                 if (SelectedOverlay != null)
                 {
+                    value = Math.Clamp(value, 5.0, 2000.0);
                     SelectedOverlay.ScalePercent = value;
                     OnPropertyChanged();
                 }
             }
         }
+
+        public double CurrentRotationDegrees
+        {
+            get => SelectedOverlay?.Rotation ?? 0.0;
+            set
+            {
+                if (SelectedOverlay != null)
+                {
+                    value = (value % 360.0 + 360.0) % 360.0;
+                    SelectedOverlay.Rotation = Math.Round(value, 1);
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private static readonly string[] PriorityFonts =
+        {
+            "Yu Gothic UI",
+            "Meiryo",
+            "MS Gothic",
+            "MS PGothic",
+            "BIZ UDPGothic",
+            "Yu Mincho",
+            "Impact",
+            "Arial",
+            "Segoe UI",
+            "Comic Sans MS",
+            "Consolas"
+        };
+
+        public IReadOnlyList<string> AvailableFontFamilies { get; } = InitializeFontFamilies();
+
+        private static List<string> InitializeFontFamilies()
+        {
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var list = new List<string>();
+
+            foreach (var f in PriorityFonts)
+            {
+                if (set.Add(f)) list.Add(f);
+            }
+
+            try
+            {
+                foreach (var font in Fonts.SystemFontFamilies.OrderBy(f => f.Source))
+                {
+                    if (set.Add(font.Source))
+                    {
+                        list.Add(font.Source);
+                    }
+                }
+            }
+            catch { }
+
+            return list;
+        }
+
+        public IReadOnlyList<ShapeType> AvailableShapeTypes { get; } = (ShapeType[])Enum.GetValues(typeof(ShapeType));
+        public IReadOnlyList<StrokeStyle> AvailableStrokeStyles { get; } = (StrokeStyle[])Enum.GetValues(typeof(StrokeStyle));
 
         public bool HasSelection => SelectedItem != null;
         public bool HasSelectedOverlay => SelectedItem is OverlayItem;
@@ -361,7 +423,7 @@ namespace MovieTweaks.ViewModels
             get => _timelineZoom;
             set
             {
-                if (SetProperty(ref _timelineZoom, Math.Clamp(value, 0.2, 5.0)))
+                if (SetProperty(ref _timelineZoom, Math.Clamp(value, 0.1, 20.0)))
                 {
                     OnPropertyChanged(nameof(TimelineZoomPercent));
                 }
@@ -397,6 +459,13 @@ namespace MovieTweaks.ViewModels
         public ICommand SetSpeedPresetCommand { get; }
         public ICommand SetOpacityPresetCommand { get; }
         public ICommand SetScalePresetCommand { get; }
+        public ICommand SetRotationPresetCommand { get; }
+        public ICommand SetTextAlignmentCommand { get; }
+        public ICommand ApplyTextPresetColorCommand { get; }
+        public ICommand SetShapeFillPresetCommand { get; }
+        public ICommand SetShapeStrokePresetCommand { get; }
+        public ICommand SetShapeTypeCommand { get; }
+        public ICommand SetStrokeStyleCommand { get; }
         public ICommand AddTextOverlayCommand { get; }
         public ICommand AddShapeOverlayCommand { get; }
         public ICommand AddImageOverlayCommand { get; }
@@ -465,6 +534,93 @@ namespace MovieTweaks.ViewModels
             SetSpeedPresetCommand = new RelayCommand<double?>(pct => { if (pct.HasValue) CurrentPlaybackSpeedPercent = pct.Value; });
             SetOpacityPresetCommand = new RelayCommand<double?>(pct => { if (pct.HasValue) CurrentOpacityPercent = pct.Value; });
             SetScalePresetCommand = new RelayCommand<double?>(pct => { if (pct.HasValue) CurrentScalePercent = pct.Value; });
+            SetRotationPresetCommand = new RelayCommand<double?>(deg => { if (deg.HasValue) CurrentRotationDegrees = deg.Value; });
+
+            SetTextAlignmentCommand = new RelayCommand<string>(align =>
+            {
+                if (SelectedTextOverlay != null && !string.IsNullOrEmpty(align))
+                {
+                    RecordHistory();
+                    SelectedTextOverlay.TextAlignment = align;
+                }
+            });
+
+            ApplyTextPresetColorCommand = new RelayCommand<string>(preset =>
+            {
+                if (SelectedTextOverlay != null && !string.IsNullOrEmpty(preset))
+                {
+                    RecordHistory();
+                    switch (preset)
+                    {
+                        case "WhiteBlack":
+                            SelectedTextOverlay.TextColor = "#FFFFFF";
+                            SelectedTextOverlay.OutlineColor = "#000000";
+                            SelectedTextOverlay.OutlineThickness = 3;
+                            break;
+                        case "YellowBlack":
+                            SelectedTextOverlay.TextColor = "#FFFF00";
+                            SelectedTextOverlay.OutlineColor = "#000000";
+                            SelectedTextOverlay.OutlineThickness = 3;
+                            break;
+                        case "RedWhite":
+                            SelectedTextOverlay.TextColor = "#FF3333";
+                            SelectedTextOverlay.OutlineColor = "#FFFFFF";
+                            SelectedTextOverlay.OutlineThickness = 3;
+                            break;
+                        case "CyanBlack":
+                            SelectedTextOverlay.TextColor = "#00E5FF";
+                            SelectedTextOverlay.OutlineColor = "#000000";
+                            SelectedTextOverlay.OutlineThickness = 3;
+                            break;
+                        case "GreenBlack":
+                            SelectedTextOverlay.TextColor = "#00FF66";
+                            SelectedTextOverlay.OutlineColor = "#000000";
+                            SelectedTextOverlay.OutlineThickness = 3;
+                            break;
+                        case "BlackWhite":
+                            SelectedTextOverlay.TextColor = "#000000";
+                            SelectedTextOverlay.OutlineColor = "#FFFFFF";
+                            SelectedTextOverlay.OutlineThickness = 3;
+                            break;
+                    }
+                }
+            });
+
+            SetShapeFillPresetCommand = new RelayCommand<string>(color =>
+            {
+                if (SelectedShapeOverlay != null && !string.IsNullOrEmpty(color))
+                {
+                    RecordHistory();
+                    SelectedShapeOverlay.FillColor = color;
+                }
+            });
+
+            SetShapeStrokePresetCommand = new RelayCommand<string>(color =>
+            {
+                if (SelectedShapeOverlay != null && !string.IsNullOrEmpty(color))
+                {
+                    RecordHistory();
+                    SelectedShapeOverlay.StrokeColor = color;
+                }
+            });
+
+            SetShapeTypeCommand = new RelayCommand<ShapeType?>(type =>
+            {
+                if (SelectedShapeOverlay != null && type.HasValue)
+                {
+                    RecordHistory();
+                    SelectedShapeOverlay.ShapeType = type.Value;
+                }
+            });
+
+            SetStrokeStyleCommand = new RelayCommand<StrokeStyle?>(style =>
+            {
+                if (SelectedShapeOverlay != null && style.HasValue)
+                {
+                    RecordHistory();
+                    SelectedShapeOverlay.StrokeStyle = style.Value;
+                }
+            });
 
             AddTextOverlayCommand = new RelayCommand(AddTextOverlay);
             AddShapeOverlayCommand = new RelayCommand<ShapeType?>(shape => AddShapeOverlay(shape ?? ShapeType.Rectangle));

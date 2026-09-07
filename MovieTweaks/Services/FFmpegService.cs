@@ -492,7 +492,7 @@ namespace MovieTweaks.Services
             }
         }
 
-        private static string BuildAtempoFilter(double speed)
+        public static string BuildAtempoFilter(double speed)
         {
             var sb = new StringBuilder();
             double current = speed;

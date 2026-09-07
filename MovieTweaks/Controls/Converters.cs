@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
+using MovieTweaks.Models;
 
 namespace MovieTweaks.Controls
 {
@@ -114,6 +115,63 @@ namespace MovieTweaks.Controls
                     return parsed;
                 }
             }
+            return Binding.DoNothing;
+        }
+    }
+
+    public class ShapeTypeConverter : IValueConverter
+    {
+        public static readonly ShapeTypeConverter Instance = new();
+
+        public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            if (value is ShapeType st)
+            {
+                return st switch
+                {
+                    ShapeType.Rectangle => "⬛ 四角形",
+                    ShapeType.RoundedRectangle => "▢ 角丸四角形",
+                    ShapeType.Ellipse => "⚪ 円・楕円",
+                    ShapeType.Triangle => "▲ 三角形",
+                    ShapeType.Star => "★ 星",
+                    ShapeType.Heart => "♥ ハート",
+                    ShapeType.Diamond => "◆ ひし形",
+                    ShapeType.Arrow => "➔ 矢印",
+                    ShapeType.Line => "― 直線",
+                    ShapeType.SpeechBubble => "💬 吹き出し",
+                    _ => value.ToString() ?? ""
+                };
+            }
+            return value?.ToString() ?? "";
+        }
+
+        public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            return Binding.DoNothing;
+        }
+    }
+
+    public class StrokeStyleConverter : IValueConverter
+    {
+        public static readonly StrokeStyleConverter Instance = new();
+
+        public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            if (value is StrokeStyle ss)
+            {
+                return ss switch
+                {
+                    StrokeStyle.Solid => "実線 ――",
+                    StrokeStyle.Dash => "破線 ┈┈",
+                    StrokeStyle.Dot => "点線 ････",
+                    _ => value.ToString() ?? ""
+                };
+            }
+            return value?.ToString() ?? "";
+        }
+
+        public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
             return Binding.DoNothing;
         }
     }

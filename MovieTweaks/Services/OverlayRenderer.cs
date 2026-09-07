@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Globalization;
 using System.IO;
 using System.Windows;
@@ -107,56 +107,204 @@ namespace MovieTweaks.Services
             return border;
         }
 
+        public static DoubleCollection? GetStrokeDashArray(StrokeStyle style) => style switch
+        {
+            StrokeStyle.Dash => new DoubleCollection { 4, 2 },
+            StrokeStyle.Dot => new DoubleCollection { 1, 2 },
+            _ => null
+        };
+
         private static FrameworkElement CreateShapeVisual(ShapeOverlay item, int width, int height)
         {
             var strokeBrush = TryParseBrush(item.StrokeColor, Brushes.Red);
             var fillBrush = TryParseBrush(item.FillColor, Brushes.Transparent);
+            var dashArray = GetStrokeDashArray(item.StrokeStyle);
+            double thickness = item.StrokeThickness;
+            double w = width;
+            double h = height;
 
             switch (item.ShapeType)
             {
                 case ShapeType.Rectangle:
                     return new Rectangle
                     {
-                        Width = width,
-                        Height = height,
+                        Width = w,
+                        Height = h,
                         Stroke = strokeBrush,
                         Fill = fillBrush,
-                        StrokeThickness = item.StrokeThickness,
+                        StrokeThickness = thickness,
+                        StrokeDashArray = dashArray
+                    };
+
+                case ShapeType.RoundedRectangle:
+                    return new Rectangle
+                    {
+                        Width = w,
+                        Height = h,
+                        Stroke = strokeBrush,
+                        Fill = fillBrush,
+                        StrokeThickness = thickness,
                         RadiusX = item.CornerRadius,
-                        RadiusY = item.CornerRadius
+                        RadiusY = item.CornerRadius,
+                        StrokeDashArray = dashArray
                     };
 
                 case ShapeType.Ellipse:
                     return new Ellipse
                     {
-                        Width = width,
-                        Height = height,
+                        Width = w,
+                        Height = h,
                         Stroke = strokeBrush,
                         Fill = fillBrush,
-                        StrokeThickness = item.StrokeThickness
+                        StrokeThickness = thickness,
+                        StrokeDashArray = dashArray
+                    };
+
+                case ShapeType.Triangle:
+                    double tHalf = thickness / 2.0;
+                    return new Polygon
+                    {
+                        Points = new PointCollection
+                        {
+                            new Point(w / 2.0, tHalf),
+                            new Point(w - tHalf, h - tHalf),
+                            new Point(tHalf, h - tHalf)
+                        },
+                        Stroke = strokeBrush,
+                        Fill = fillBrush,
+                        StrokeThickness = thickness,
+                        StrokeDashArray = dashArray
+                    };
+
+                case ShapeType.Diamond:
+                    double dtHalf = thickness / 2.0;
+                    return new Polygon
+                    {
+                        Points = new PointCollection
+                        {
+                            new Point(w / 2.0, dtHalf),
+                            new Point(w - dtHalf, h / 2.0),
+                            new Point(w / 2.0, h - dtHalf),
+                            new Point(dtHalf, h / 2.0)
+                        },
+                        Stroke = strokeBrush,
+                        Fill = fillBrush,
+                        StrokeThickness = thickness,
+                        StrokeDashArray = dashArray
+                    };
+
+                case ShapeType.Star:
+                    double cx = w / 2.0, cy = h / 2.0;
+                    double rx = Math.Max(1, (w - thickness) / 2.0);
+                    double ry = Math.Max(1, (h - thickness) / 2.0);
+                    var starPoints = new PointCollection();
+                    for (int i = 0; i < 10; i++)
+                    {
+                        double angle = -Math.PI / 2.0 + i * Math.PI / 5.0;
+                        double rRatio = (i % 2 == 0) ? 1.0 : 0.45;
+                        starPoints.Add(new Point(cx + rx * rRatio * Math.Cos(angle), cy + ry * rRatio * Math.Sin(angle)));
+                    }
+                    return new Polygon
+                    {
+                        Points = starPoints,
+                        Stroke = strokeBrush,
+                        Fill = fillBrush,
+                        StrokeThickness = thickness,
+                        StrokeDashArray = dashArray
+                    };
+
+                case ShapeType.Heart:
+                    var heartGeom = new PathGeometry();
+                    double ht = thickness / 2.0;
+                    double pw = Math.Max(1, w - thickness);
+                    double ph = Math.Max(1, h - thickness);
+                    var heartFig = new PathFigure
+                    {
+                        StartPoint = new Point(ht + pw * 0.5, ht + ph * 0.25),
+                        IsClosed = true,
+                        IsFilled = true
+                    };
+                    heartFig.Segments.Add(new BezierSegment(
+                        new Point(ht + pw * 0.5, ht),
+                        new Point(ht, ht),
+                        new Point(ht, ht + ph * 0.4), true));
+                    heartFig.Segments.Add(new BezierSegment(
+                        new Point(ht, ht + ph * 0.7),
+                        new Point(ht + pw * 0.35, ht + ph * 0.85),
+                        new Point(ht + pw * 0.5, ht + ph), true));
+                    heartFig.Segments.Add(new BezierSegment(
+                        new Point(ht + pw * 0.65, ht + ph * 0.85),
+                        new Point(ht + pw, ht + ph * 0.7),
+                        new Point(ht + pw, ht + ph * 0.4), true));
+                    heartFig.Segments.Add(new BezierSegment(
+                        new Point(ht + pw, ht),
+                        new Point(ht + pw * 0.5, ht),
+                        new Point(ht + pw * 0.5, ht + ph * 0.25), true));
+                    heartGeom.Figures.Add(heartFig);
+                    return new System.Windows.Shapes.Path
+                    {
+                        Data = heartGeom,
+                        Stroke = strokeBrush,
+                        Fill = fillBrush,
+                        StrokeThickness = thickness,
+                        StrokeDashArray = dashArray
+                    };
+
+                case ShapeType.SpeechBubble:
+                    var bubbleGeom = new PathGeometry();
+                    double bt = thickness / 2.0;
+                    double bpw = Math.Max(1, w - thickness);
+                    double tailH = Math.Min(h * 0.25, 25.0);
+                    double bodyH = Math.Max(1, h - thickness - tailH);
+                    double cr = Math.Min(item.CornerRadius, Math.Min(bpw / 2.0, bodyH / 2.0));
+                    var bubbleFig = new PathFigure
+                    {
+                        StartPoint = new Point(bt + cr, bt),
+                        IsClosed = true,
+                        IsFilled = true
+                    };
+                    bubbleFig.Segments.Add(new LineSegment(new Point(bt + bpw - cr, bt), true));
+                    bubbleFig.Segments.Add(new ArcSegment(new Point(bt + bpw, bt + cr), new Size(cr, cr), 0, false, SweepDirection.Clockwise, true));
+                    bubbleFig.Segments.Add(new LineSegment(new Point(bt + bpw, bt + bodyH - cr), true));
+                    bubbleFig.Segments.Add(new ArcSegment(new Point(bt + bpw - cr, bt + bodyH), new Size(cr, cr), 0, false, SweepDirection.Clockwise, true));
+                    bubbleFig.Segments.Add(new LineSegment(new Point(bt + bpw * 0.4, bt + bodyH), true));
+                    bubbleFig.Segments.Add(new LineSegment(new Point(bt + bpw * 0.2, bt + h - thickness), true));
+                    bubbleFig.Segments.Add(new LineSegment(new Point(bt + bpw * 0.25, bt + bodyH), true));
+                    bubbleFig.Segments.Add(new LineSegment(new Point(bt + cr, bt + bodyH), true));
+                    bubbleFig.Segments.Add(new ArcSegment(new Point(bt, bt + bodyH - cr), new Size(cr, cr), 0, false, SweepDirection.Clockwise, true));
+                    bubbleFig.Segments.Add(new LineSegment(new Point(bt, bt + cr), true));
+                    bubbleFig.Segments.Add(new ArcSegment(new Point(bt + cr, bt), new Size(cr, cr), 0, false, SweepDirection.Clockwise, true));
+                    bubbleGeom.Figures.Add(bubbleFig);
+                    return new System.Windows.Shapes.Path
+                    {
+                        Data = bubbleGeom,
+                        Stroke = strokeBrush,
+                        Fill = fillBrush,
+                        StrokeThickness = thickness,
+                        StrokeDashArray = dashArray
                     };
 
                 case ShapeType.Arrow:
-                    var arrowCanvas = new Canvas { Width = width, Height = height };
-                    // Draw horizontal arrow from left to right
+                    var arrowCanvas = new Canvas { Width = w, Height = h };
                     var line = new Line
                     {
-                        X1 = item.StrokeThickness,
-                        Y1 = height / 2.0,
-                        X2 = width - 10,
-                        Y2 = height / 2.0,
+                        X1 = thickness,
+                        Y1 = h / 2.0,
+                        X2 = w - 10,
+                        Y2 = h / 2.0,
                         Stroke = strokeBrush,
-                        StrokeThickness = item.StrokeThickness
+                        StrokeThickness = thickness,
+                        StrokeDashArray = dashArray
                     };
-                    var headSize = Math.Max(12, item.StrokeThickness * 3);
+                    var headSize = Math.Max(12, thickness * 3);
                     var arrowHead = new Polygon
                     {
                         Fill = strokeBrush,
                         Points = new PointCollection
                         {
-                            new Point(width, height / 2.0),
-                            new Point(width - headSize, height / 2.0 - headSize * 0.6),
-                            new Point(width - headSize, height / 2.0 + headSize * 0.6)
+                            new Point(w, h / 2.0),
+                            new Point(w - headSize, h / 2.0 - headSize * 0.6),
+                            new Point(w - headSize, h / 2.0 + headSize * 0.6)
                         }
                     };
                     arrowCanvas.Children.Add(line);
@@ -167,12 +315,13 @@ namespace MovieTweaks.Services
                 default:
                     return new Line
                     {
-                        X1 = item.StrokeThickness,
-                        Y1 = height / 2.0,
-                        X2 = width - item.StrokeThickness,
-                        Y2 = height / 2.0,
+                        X1 = thickness,
+                        Y1 = h / 2.0,
+                        X2 = w - thickness,
+                        Y2 = h / 2.0,
                         Stroke = strokeBrush,
-                        StrokeThickness = item.StrokeThickness
+                        StrokeThickness = thickness,
+                        StrokeDashArray = dashArray
                     };
             }
         }
