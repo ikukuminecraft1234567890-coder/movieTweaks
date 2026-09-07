@@ -166,6 +166,32 @@
             <!-- Video Preview Container -->
             <Border Grid.Column="0" Background="#111111" Margin="8" CornerRadius="6" ClipToBounds="True">
                 <Grid x:Name="PreviewAreaGrid" SizeChanged="PreviewAreaGrid_SizeChanged">
+                    <Grid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="📝 ここにテキストを追加" Command="{Binding AddTextOverlayCommand}"/>
+                            <MenuItem Header="⬛ ここに四角形を追加" Command="{Binding AddShapeOverlayCommand}">
+                                <MenuItem.CommandParameter>
+                                    <models:ShapeType>Rectangle</models:ShapeType>
+                                </MenuItem.CommandParameter>
+                            </MenuItem>
+                            <MenuItem Header="➔ ここに矢印を追加" Command="{Binding AddShapeOverlayCommand}">
+                                <MenuItem.CommandParameter>
+                                    <models:ShapeType>Arrow</models:ShapeType>
+                                </MenuItem.CommandParameter>
+                            </MenuItem>
+                            <MenuItem Header="🖼 ここに画像を配置..." Command="{Binding AddImageOverlayCommand}"/>
+                            <Separator/>
+                            <MenuItem Header="✂ ここで分割 (S)" Command="{Binding SplitCutCommand}"/>
+                            <MenuItem Header="📍 ここをイン点に設定 (I)" Command="{Binding SetInPointCommand}"/>
+                            <MenuItem Header="📍 ここをアウト点に設定 (O)" Command="{Binding SetOutPointCommand}"/>
+                            <Separator/>
+                            <MenuItem Header="📋 選択アイテムを複製" Command="{Binding DuplicateSelectedOverlayCommand}"
+                                      Visibility="{Binding HasSelectedOverlay, Converter={x:Static controls:BooleanToVisibilityConverter.Instance}}"/>
+                            <MenuItem Header="🗑 選択アイテムを削除 (Delete)" Command="{Binding DeleteSelectedCommand}"
+                                      Visibility="{Binding HasSelection, Converter={x:Static controls:BooleanToVisibilityConverter.Instance}}"/>
+                        </ContextMenu>
+                    </Grid.ContextMenu>
+
                     <!-- Placeholder when no video -->
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                                 Visibility="{Binding Project.SourceVideo, Converter={x:Static controls:NullToVisibilityConverter.Instance}}">

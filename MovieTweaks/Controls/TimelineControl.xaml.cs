@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using MovieTweaks.Models;
+using MovieTweaks.ViewModels;
 
 namespace MovieTweaks.Controls
 {
@@ -555,6 +556,60 @@ namespace MovieTweaks.Controls
                 _draggingOverlay = null;
                 OverlayTrackCanvas.ReleaseMouseCapture();
             }
+        }
+
+        private void TimelineControl_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            // Right-click instantly seeks to the clicked timestamp!
+            var p = e.GetPosition(this);
+            SeekToMouse(p.X);
+        }
+
+        private MainViewModel? GetViewModel() => DataContext as MainViewModel;
+
+        private void MenuSplit_Click(object sender, RoutedEventArgs e)
+        {
+            GetViewModel()?.SplitCutCommand.Execute(null);
+        }
+
+        private void MenuSetIn_Click(object sender, RoutedEventArgs e)
+        {
+            GetViewModel()?.SetInPointCommand.Execute(null);
+        }
+
+        private void MenuSetOut_Click(object sender, RoutedEventArgs e)
+        {
+            GetViewModel()?.SetOutPointCommand.Execute(null);
+        }
+
+        private void MenuAddText_Click(object sender, RoutedEventArgs e)
+        {
+            GetViewModel()?.AddTextOverlayCommand.Execute(null);
+        }
+
+        private void MenuAddRect_Click(object sender, RoutedEventArgs e)
+        {
+            GetViewModel()?.AddShapeOverlayCommand.Execute(ShapeType.Rectangle);
+        }
+
+        private void MenuAddArrow_Click(object sender, RoutedEventArgs e)
+        {
+            GetViewModel()?.AddShapeOverlayCommand.Execute(ShapeType.Arrow);
+        }
+
+        private void MenuAddImage_Click(object sender, RoutedEventArgs e)
+        {
+            GetViewModel()?.AddImageOverlayCommand.Execute(null);
+        }
+
+        private void MenuDelete_Click(object sender, RoutedEventArgs e)
+        {
+            GetViewModel()?.DeleteSelectedCommand.Execute(null);
+        }
+
+        private void MenuResetCut_Click(object sender, RoutedEventArgs e)
+        {
+            GetViewModel()?.ResetCutCommand.Execute(null);
         }
     }
 }
